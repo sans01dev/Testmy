@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>동네몬스터 v0.2</title>
+<style>
+  :root{
+    --p:#6D4AFF; --p-d:#5A38E0; --p-soft:#EDE9FF;
+    --bg:#F5F5F8; --card:#FFFFFF; --line:#E6E6EE;
+    --text:#2A2A33; --text2:#6B6B78; --text3:#9C9CAC;
+    --r-sm:10px; --r-md:14px; --r-lg:20px;
+    --map:#DDE7DC; --map-line:#CBD8CA;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    background:var(--bg); color:var(--text); font-size:15px; line-height:1.5;
+    -webkit-font-smoothing:antialiased; max-width:480px; margin:0 auto; position:relative; min-height:100vh;
+  }
+  button{font-family:inherit; cursor:pointer; border:none; background:none;}
+
+  #intro{position:fixed; top:0; left:0; right:0; bottom:0; z-index:50;
+    background:linear-gradient(160deg,#6D4AFF 0%,#8B6FF5 60%,#A995F7 100%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:#fff; text-align:center; padding:0 32px; max-width:480px; margin:0 auto;}
+  #intro .logo{width:112px; height:112px; margin-bottom:26px; filter:drop-shadow(0 8px 18px rgba(0,0,0,.22));}
+  #intro h1{font-size:27px; font-weight:800; letter-spacing:-.5px; margin:0 0 18px;}
+  #intro p{font-size:16px; font-weight:600; line-height:1.7; opacity:.94; margin:0 0 40px;}
+  #intro .start{background:#fff; color:var(--p-d); font-size:17px; font-weight:800;
+    padding:15px 54px; border-radius:999px; box-shadow:0 6px 16px rgba(0,0,0,.18);}
+  #intro .start:active{transform:translateY(1px);}
+
+  header{position:sticky; top:0; z-index:20; background:var(--card); border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:10px; padding:11px 16px;}
+  header .hicon{width:38px; height:38px; flex:0 0 auto;}
+  header .htxt b{display:block; font-size:16.5px; font-weight:800; letter-spacing:-.3px; line-height:1.2;}
+  header .htxt span{display:block; font-size:11.5px; font-weight:600; color:var(--text3); margin-top:1px;}
+  header .catch-count{margin-left:auto; background:var(--p-soft); color:var(--p-d);
+    font-size:12.5px; font-weight:800; padding:6px 12px; border-radius:999px;}
+
+  .tabs{position:sticky; top:61px; z-index:19; display:flex; background:var(--card); border-bottom:1px solid var(--line);}
+  .tabs button{flex:1; padding:12px 0; font-size:14.5px; font-weight:700; color:var(--text3); border-bottom:2.5px solid transparent;}
+  .tabs button.on{color:var(--p); border-bottom-color:var(--p);}
+  .page{display:none; padding:16px;}
+  .page.on{display:block;}
+
+  .map-wrap{position:relative; width:100%; aspect-ratio:1/1; border-radius:var(--r-lg);
+    overflow:hidden; background:var(--map); border:1px solid var(--map-line);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.4);}
+  .map-grid{position:absolute; top:0; left:0; right:0; bottom:0;
+    background-image:linear-gradient(var(--map-line) 1px,transparent 1px),linear-gradient(90deg,var(--map-line) 1px,transparent 1px);
+    background-size:34px 34px; opacity:.55;}
+  .range-ring{position:absolute; left:50%; top:50%; border-radius:50%; border:2px dashed rgba(109,74,255,.45);
+    transform:translate(-50%,-50%); animation:pulse 2.4s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:.35;}50%{opacity:.75;}}
+  .me{position:absolute; left:50%; top:50%; width:22px; height:22px; transform:translate(-50%,-50%); z-index:5;}
+  .me .dot{width:16px; height:16px; border-radius:50%; background:var(--p); border:3px solid #fff;
+    box-shadow:0 2px 6px rgba(0,0,0,.3); margin:3px;}
+  .me .halo{position:absolute; left:50%; top:50%; width:40px; height:40px; border-radius:50%;
+    background:rgba(109,74,255,.18); transform:translate(-50%,-50%); animation:halo 2s ease-out infinite;}
+  @keyframes halo{0%{transform:translate(-50%,-50%) scale(.5);opacity:.7;}100%{transform:translate(-50%,-50%) scale(1.4);opacity:0;}}
+  .mon-marker{position:absolute; width:40px; height:40px; transform:translate(-50%,-50%); z-index:4;
+    transition:left .3s ease,top .3s ease; cursor:pointer;}
+  .mon-marker svg{width:100%; height:100%; filter:drop-shadow(0 3px 5px rgba(0,0,0,.28));}
+  .mon-marker.inrange{animation:bob 1s ease-in-out infinite;}
+  @keyframes bob{0%,100%{transform:translate(-50%,-50%);}50%{transform:translate(-50%,-58%);}}
+  .mon-marker .qmark{position:absolute; top:-2px; right:-2px; width:15px; height:15px; background:#fff;
+    color:var(--text2); border-radius:50%; font-size:10px; font-weight:800; display:flex; align-items:center;
+    justify-content:center; box-shadow:0 1px 3px rgba(0,0,0,.25);}
+  .mon-marker .rare-dot{position:absolute; top:-3px; left:-3px; width:12px; height:12px; border-radius:50%;
+    border:2px solid #fff; box-shadow:0 1px 2px rgba(0,0,0,.3);}
+
+  .status-row{display:flex; align-items:center; gap:8px; margin:12px 2px 4px;}
+  .status-row .gps{font-size:12.5px; font-weight:700; color:var(--text2); display:flex; align-items:center; gap:5px;}
+  .status-row .gps .led{width:8px; height:8px; border-radius:50%; background:#22C55E;}
+  .status-row .gps .led.off{background:#DC2626;}
+  .mode-toggle{margin-left:auto; font-size:12px; font-weight:700; color:var(--p-d);
+    background:var(--p-soft); padding:6px 11px; border-radius:999px;}
+  .dpad{display:none; margin:14px auto 2px; width:170px;}
+  .dpad.on{display:block;}
+  .dpad .row{display:flex; justify-content:center; gap:8px; margin:6px 0;}
+  .dpad button{width:52px; height:46px; border-radius:var(--r-sm); background:var(--card); border:1px solid var(--line);
+    font-size:19px; font-weight:800; color:var(--p-d); box-shadow:0 1px 3px rgba(0,0,0,.06);}
+  .dpad button:active{background:var(--p-soft);}
+  .dpad .hint{text-align:center; font-size:11.5px; color:var(--text3); font-weight:600; margin-top:4px;}
+
+  .catch-card{margin-top:14px; background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg);
+    padding:14px; display:flex; align-items:center; gap:13px; box-shadow:0 3px 12px rgba(0,0,0,.06);}
+  .catch-card .cc-icon{width:58px; height:58px; flex:0 0 auto;}
+  .catch-card .cc-info{flex:1; min-width:0;}
+  .catch-card .cc-info b{font-size:16px; font-weight:800;}
+  .catch-card .cc-info .dist{font-size:13px; font-weight:700; color:var(--text2); margin-top:2px;}
+  .catch-card .cc-info .dist.near{color:#16A34A;}
+  .catch-card .cc-btn{background:var(--p); color:#fff; font-size:15.5px; font-weight:800; padding:13px 22px;
+    border-radius:var(--r-md); flex:0 0 auto;}
+  .catch-card .cc-btn:active{background:var(--p-d);}
+  .empty-hint{margin-top:14px; text-align:center; font-size:13.5px; font-weight:600; color:var(--text3);
+    padding:18px 10px; background:var(--card); border-radius:var(--r-lg); border:1px dashed var(--line);}
+
+  .dex-head{display:flex; align-items:baseline; gap:8px; margin:2px 2px 14px;}
+  .dex-head b{font-size:17px; font-weight:800;}
+  .dex-head span{font-size:13px; font-weight:700; color:var(--p-d);}
+  .dex-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:11px;}
+  .dex-cell{background:var(--card); border:1px solid var(--line); border-radius:var(--r-md); padding:12px 6px 10px; text-align:center; position:relative;}
+  .dex-cell .num{font-size:10.5px; font-weight:800; color:var(--text3);}
+  .dex-cell .art{width:56px; height:56px; margin:3px auto 5px;}
+  .dex-cell.locked .art{filter:grayscale(1) brightness(.62) opacity(.5);}
+  .dex-cell .nm{font-size:13px; font-weight:700; letter-spacing:-.2px;}
+  .dex-cell.locked .nm{color:var(--text3);}
+  .dex-cell .cnt{font-size:10.5px; font-weight:700; color:var(--p-d); margin-top:2px; min-height:13px;}
+  .dex-cell .rb{position:absolute; top:7px; right:7px; width:9px; height:9px; border-radius:50%;}
+
+  .tbadge{display:inline-block; font-size:11px; font-weight:800; color:#fff; padding:3px 9px; border-radius:999px;}
+
+  .sheet-bg{position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.4); z-index:40; display:none; max-width:480px; margin:0 auto;}
+  .sheet-bg.on{display:block;}
+  .sheet{position:fixed; left:0; right:0; bottom:0; z-index:41; background:var(--card); border-radius:24px 24px 0 0;
+    max-height:80vh; overflow-y:auto; padding:8px 20px 30px; max-width:480px; margin:0 auto;
+    transform:translateY(100%); transition:transform .28s ease;}
+  .sheet.on{transform:translateY(0);}
+  .sheet .grab{width:40px; height:5px; border-radius:3px; background:var(--line); margin:8px auto 14px;}
+  .sheet .big-art{width:118px; height:118px; margin:2px auto 8px; display:block;}
+  .sheet h2{text-align:center; font-size:22px; font-weight:800; margin:0 0 6px;}
+  .sheet .badges{text-align:center; margin-bottom:16px; display:flex; gap:6px; justify-content:center;}
+  .sheet .flavor{background:var(--bg); border-radius:var(--r-md); padding:14px 15px; font-size:14.5px; font-weight:600; line-height:1.55; color:var(--text);}
+  .sheet .meta{margin-top:12px; font-size:13px; font-weight:600; color:var(--text2); display:flex; justify-content:space-between;}
+  .sheet .locked-msg{text-align:center; color:var(--text3); font-size:14px; font-weight:600; padding:6px 0 4px;}
+
+  /* ===== 잡기 연출 ===== */
+  #catchFx{position:fixed; top:0; left:0; right:0; bottom:0; z-index:70; max-width:480px; margin:0 auto;
+    display:none; align-items:center; justify-content:center; overflow:hidden;
+    background:radial-gradient(circle at 50% 42%, rgba(109,74,255,.55), rgba(20,16,40,.92));}
+  #catchFx.on{display:flex;}
+  #fxMon{position:absolute; top:38%; left:50%; width:150px; height:150px; transform:translate(-50%,-50%) scale(0);}
+  #fxMon.in{animation:fxIn .45s cubic-bezier(.2,1.4,.4,1) forwards;}
+  #fxMon.shake{animation:fxShake .3s ease-in-out 2;}
+  #fxMon.gone{transition:transform .4s cubic-bezier(.5,-0.4,.6,.4),opacity .4s ease; transform:translate(-50%,-50%) scale(0) rotate(180deg); opacity:0;}
+  @keyframes fxIn{0%{transform:translate(-50%,-50%) scale(0);}100%{transform:translate(-50%,-50%) scale(1);}}
+  @keyframes fxShake{0%,100%{transform:translate(-50%,-50%);}25%{transform:translate(-56%,-50%) rotate(-8deg);}75%{transform:translate(-44%,-50%) rotate(8deg);}}
+  #fxOrb{position:absolute; top:90%; left:50%; width:56px; height:56px; transform:translate(-50%,-50%) scale(.6); opacity:0;}
+  #fxOrb .core{width:100%; height:100%; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #fff, var(--p) 70%, var(--p-d));
+    box-shadow:0 0 22px rgba(109,74,255,.9), inset 0 -6px 10px rgba(0,0,0,.25);}
+  #fxOrb .spark{position:absolute; top:22%; left:26%; width:16px; height:16px; border-radius:50%; background:rgba(255,255,255,.85); filter:blur(1px);}
+  #fxOrb.fly{transition:top .4s cubic-bezier(.5,0,.6,1),transform .4s ease,opacity .1s; top:38%; transform:translate(-50%,-50%) scale(1); opacity:1;}
+  #fxOrb.hide{opacity:0;}
+  #fxFlash{position:absolute; top:38%; left:50%; width:10px; height:10px; border-radius:50%; transform:translate(-50%,-50%);
+    background:#fff; opacity:0;}
+  #fxFlash.go{animation:fxFlash .5s ease-out forwards;}
+  @keyframes fxFlash{0%{opacity:.9; width:10px; height:10px;}100%{opacity:0; width:260px; height:260px;}}
+  .fxpar{position:absolute; top:38%; left:50%; width:9px; height:9px; border-radius:50%; opacity:0;}
+  #fxResult{position:absolute; top:0; left:0; right:0; bottom:0; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 30px;}
+  #fxResult.on{display:flex;}
+  #fxResult .rart{width:150px; height:150px; margin-bottom:6px; animation:fxIn .5s cubic-bezier(.2,1.4,.4,1) both;}
+  #fxResult .newbadge{display:inline-block; background:#FFC93C; color:#5A3B00; font-size:12.5px; font-weight:900; padding:4px 12px; border-radius:999px; margin-bottom:10px; letter-spacing:.5px;}
+  #fxResult h3{color:#fff; font-size:26px; font-weight:900; margin:0 0 6px;}
+  #fxResult .rtype{margin-bottom:26px;}
+  #fxResult .cont{color:rgba(255,255,255,.75); font-size:13.5px; font-weight:700;}
+
+  #toast{position:fixed; left:50%; bottom:32px; transform:translateX(-50%) translateY(20px); background:#2A2A33; color:#fff;
+    font-size:14px; font-weight:700; padding:12px 22px; border-radius:999px; z-index:80; opacity:0; pointer-events:none;
+    transition:all .3s ease; box-shadow:0 6px 18px rgba(0,0,0,.3); white-space:nowrap;}
+  #toast.on{opacity:1; transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<div id="intro">
+  <div class="logo" id="introLogo"></div>
+  <h1>동네몬스터</h1>
+  <p>동네를 걷다 보면<br>숨어 있던 몬스터가<br>하나 둘 나타나요</p>
+  <button class="start" onclick="startApp()">시작하기</button>
+</div>
+
+<header>
+  <div class="hicon" id="headLogo"></div>
+  <div class="htxt"><b>동네몬스터</b><span>우리 동네 몬스터 도감</span></div>
+  <div class="catch-count" id="catchCount">0 / 151</div>
+</header>
+
+<div class="tabs">
+  <button class="on" id="tabExplore" onclick="switchTab('explore')">탐험</button>
+  <button id="tabDex" onclick="switchTab('dex')">도감</button>
+</div>
+
+<div class="page on" id="pageExplore">
+  <div class="map-wrap" id="mapWrap">
+    <div class="map-grid"></div>
+    <div class="range-ring" id="rangeRing"></div>
+    <div class="me"><div class="halo"></div><div class="dot"></div></div>
+  </div>
+  <div class="status-row">
+    <div class="gps" id="gpsStat"><span class="led off"></span>위치 확인 중…</div>
+    <button class="mode-toggle" id="modeToggle" onclick="toggleMode()">테스트 이동</button>
+  </div>
+  <div class="dpad" id="dpad">
+    <div class="row"><button onclick="vmove(0,1)">↑</button></div>
+    <div class="row"><button onclick="vmove(-1,0)">←</button><button onclick="vmove(0,-1)">↓</button><button onclick="vmove(1,0)">→</button></div>
+    <div class="hint">가상으로 걸어다니며 몬스터를 찾아보세요</div>
+  </div>
+  <div id="catchZone"></div>
+</div>
+
+<div class="page" id="pageDex">
+  <div class="dex-head"><b>몬스터 도감</b><span id="dexProgress">0마리 발견</span></div>
+  <div class="dex-grid" id="dexGrid"></div>
+</div>
+
+<div class="sheet-bg" id="sheetBg" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet"></div>
+
+<!-- 잡기 연출 -->
+<div id="catchFx">
+  <div id="fxFlash"></div>
+  <div id="fxMon"></div>
+  <div id="fxOrb"><div class="core"></div><div class="spark"></div></div>
+  <div id="fxResult"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ================= 설정 ================= */
+var CELL=0.00035, SPAWN_RATE=0.22, CATCH_RANGE=25, MAP_RADIUS_M=150, SCAN=6, STEP_M=8;
+var COOLDOWN=6*60*60*1000;
+var DEFAULT_POS={lat:37.5665, lng:126.9780};
+
+/* ================= RNG ================= */
+function hash2(x,y){
+  var h=2166136261>>>0;
+  h=Math.imul(h^(x&0xffff),16777619); h=Math.imul(h^((x>>>16)&0xffff),16777619);
+  h=Math.imul(h^(y&0xffff),16777619); h=Math.imul(h^((y>>>16)&0xffff),16777619);
+  h=Math.imul(h^0x9e37,16777619); return h>>>0;
+}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function rngFor(id,salt){return mulberry32(hash2(id*2654435761&0x7fffffff, salt));}
+
+/* ================= 타입 ================= */
+var TYPEDEF={
+  normal:{n:'노멀', badge:'#9CA3AF', hues:[[340,52,79],[35,58,80],[24,32,68],[275,30,80]]},
+  fire:{n:'불', badge:'#F97316', hue:16,sat:88,light:60},
+  water:{n:'물', badge:'#3B82F6', hue:210,sat:78,light:63},
+  grass:{n:'풀', badge:'#22C55E', hue:132,sat:52,light:57},
+  elec:{n:'전기', badge:'#EAB308', hue:47,sat:90,light:62},
+  rock:{n:'바위', badge:'#A8836B', hue:26,sat:20,light:56},
+  fly:{n:'비행', badge:'#7DA9E0', hue:206,sat:52,light:78},
+  bug:{n:'벌레', badge:'#84CC16', hue:92,sat:52,light:55},
+  ice:{n:'얼음', badge:'#38BDF8', hue:190,sat:62,light:80},
+  ghost:{n:'고스트', badge:'#7C5C9E', hue:270,sat:34,light:50},
+  dragon:{n:'드래곤', badge:'#14B8A6', hue:168,sat:58,light:48},
+  star:{n:'별', badge:'#F59E0B', hue:45,sat:92,light:62}
+};
+var TIERDEF={common:{w:100,c:'#B7BDC7',n:'흔함'},uncommon:{w:40,c:'#4F9E7B',n:'가끔'},rare:{w:12,c:'#3B82F6',n:'희귀'},legendary:{w:3,c:'#F59E0B',n:'전설'}};
+var TYPE_COUNTS={normal:18,fire:14,water:16,grass:16,elec:12,rock:12,fly:12,bug:14,ice:11,ghost:10,dragon:9,star:7};
+
+/* ================= 색 유틸 ================= */
+function hslHex(h,s,l){
+  s/=100; l/=100;
+  var k=function(n){return (n+h/30)%12;};
+  var a=s*Math.min(l,1-l);
+  var f=function(n){var c=k(n); var col=l-a*Math.max(-1,Math.min(c-3,Math.min(9-c,1))); return Math.round(255*col);};
+  var to=function(x){x=Math.max(0,Math.min(255,x)); var q=x.toString(16); return q.length==1?'0'+q:q;};
+  return '#'+to(f(0))+to(f(8))+to(f(4));
+}
+function colorsFor(type,r){
+  var d=TYPEDEF[type], h,s,l;
+  if(type==='normal'){var p=d.hues[Math.floor(r()*d.hues.length)]; h=p[0]; s=p[1]; l=p[2];}
+  else{h=d.hue+(r()*20-10); s=d.sat; l=d.light;}
+  h=(h+360)%360;
+  return {c:hslHex(h,s,l), c2:hslHex(h,Math.min(100,s+10),Math.max(20,l-24)), cl:hslHex(h,Math.max(14,s-28),Math.min(94,l+16))};
+}
+
+/* ================= 이름 ================= */
+var PRE=['몰','토','보','푸','차','미','꼬','두','라','삐','콩','뭉','냐','파','루','단','호','키','비','포','소','나','구','별','용','얼','불','물','잎','돌','쿠','멍','담','수','리','조','바','하','모','노','티','쪼','깨','둥','웅','랑'];
+var SUF=['랑이','씨','방울','몽','전','돌이','솜','린','곰','자','아기','콩','토','미','꾸','뭉','치','냥','루','비','둥이','뽕','깨비','진','요','둔','롱','꼴','팽','님','냥이','별','뭉치','포'];
+var USED_NAMES={};
+function makeName(id){
+  for(var k=0;k<16;k++){
+    var r=rngFor(id,300+k);
+    var nm=PRE[Math.floor(r()*PRE.length)]+SUF[Math.floor(r()*SUF.length)];
+    if(!USED_NAMES[nm]){USED_NAMES[nm]=1; return nm;}
+  }
+  var fb=PRE[id%PRE.length]+SUF[id%SUF.length]+id; USED_NAMES[fb]=1; return fb;
+}
+
+/* ================= 설명 ================= */
+var FLV={
+  normal:['동네 골목을 제집처럼 돌아다닌다.','사람을 잘 따르는 순한 몬스터.','낮잠 자리를 늘 새로 찾아다닌다.'],
+  fire:['꼬리 끝 불씨로 밤길을 밝혀준다.','추운 날이면 몸이 더 따뜻해진다.','작은 모닥불 옆을 좋아한다.'],
+  water:['비 오는 날이면 신나서 통통 튄다.','웅덩이만 보면 뛰어드는 장난꾸러기.','몸이 늘 촉촉하고 시원하다.'],
+  grass:['머리 위 새싹이 햇빛을 먹는다.','꽃밭에서 자주 목격된다.','봄이 오면 기운이 넘친다.'],
+  elec:['볼에 모인 정전기로 폰을 살짝 충전.','번쩍일 때 만지면 찌릿하다.','흐린 날엔 힘이 좀 빠진다.'],
+  rock:['가만히 있으면 진짜 돌인 줄 안다.','아주 단단하고 튼튼하다.','오래된 담벼락 근처를 좋아한다.'],
+  fly:['바람 부는 언덕에서 낮잠을 잔다.','높은 곳을 제일 좋아한다.','구름 사이를 유유히 난다.'],
+  bug:['가로등 불빛을 좋아하는 밤 방랑자.','풀숲을 재빠르게 돌아다닌다.','더듬이로 냄새를 잘 맡는다.'],
+  ice:['한여름에도 발바닥이 시원하다.','입김을 불면 눈꽃이 핀다.','추울수록 기운이 난다.'],
+  ghost:['골목 끝에서 가끔 눈만 반짝인다.','밤이 되면 조용히 나타난다.','장난치는 걸 은근히 좋아한다.'],
+  dragon:['아직 아기라 불 대신 딸꾹질.','언젠가 크게 자랄 거라는 소문.','자존심이 은근 세다.'],
+  star:['운 좋은 사람 앞에만 떨어진다.','밤하늘 냄새가 난다고 한다.','아주 드물게 반짝이며 나타난다.']
+};
+function flavorFor(id,type){var r=rngFor(id,500); var arr=FLV[type]; return arr[Math.floor(r()*arr.length)];}
+
+/* ================= 티어/타입 배치 ================= */
+function buildTypeOrder(){
+  var list=[]; for(var t in TYPE_COUNTS){for(var i=0;i<TYPE_COUNTS[t];i++) list.push(t);}
+  var r=mulberry32(20260713);
+  for(var i=list.length-1;i>0;i--){var j=Math.floor(r()*(i+1)); var tmp=list[i]; list[i]=list[j]; list[j]=tmp;}
+  return list;
+}
+function pickTier(type,r){
+  var x=r();
+  if(type==='star') return x<0.6?'legendary':'rare';
+  if(type==='dragon') return x<0.45?'rare':(x<0.8?'uncommon':'common');
+  if(x<0.66) return 'common'; if(x<0.88) return 'uncommon'; if(x<0.975) return 'rare'; return 'legendary';
+}
+
+/* ================= 게놈 ================= */
+function pick(r,arr){return arr[Math.floor(r()*arr.length)];}
+function genomeFor(id,type,tier,col){
+  var r=rngFor(id,700);
+  var g={type:type,tier:tier,c:col.c,c2:col.c2,cl:col.cl};
+  // body
+  if(type==='water') g.body=r()<0.7?'tear':'round';
+  else if(type==='fly') g.body=r()<0.6?'tall':'round';
+  else if(type==='ghost') g.body='ghost';
+  else if(type==='star') g.body='gem';
+  else if(type==='rock') g.body=r()<0.5?'quad':'blob';
+  else if(type==='bug') g.body=r()<0.5?'tall':'round';
+  else if(type==='dragon') g.body='round';
+  else g.body=pick(r,['round','blob','round','tall']);
+  // ears
+  if(type==='bug') g.ears='antenna';
+  else if(type==='ice') g.ears=r()<0.6?'round':'none';
+  else if(type==='normal') g.ears=pick(r,['cat','round','none','cat']);
+  else if(type==='fire') g.ears=r()<0.5?'cat':'none';
+  else if(type==='dragon') g.ears='none';
+  else g.ears=r()<0.28?'round':'none';
+  // horns
+  g.horns=(type==='dragon')||(type==='rock'&&r()<0.4)||(type==='ice'&&r()<0.35);
+  // top deco
+  if(type==='grass') g.top=r()<0.5?'leaf':'sprout';
+  else if(type==='fire') g.top='flame';
+  else if(type==='elec') g.top='bolt';
+  else if(type==='ice') g.top='crystal';
+  else if(type==='star') g.top='star';
+  else if(type==='water') g.top=r()<0.4?'fin':'none';
+  else g.top=r()<0.22?'sprout':'none';
+  // wings
+  if(type==='fly') g.wings=r()<0.5?'wide':'small';
+  else if(type==='bug') g.wings=r()<0.7?'small':'none';
+  else if(type==='dragon') g.wings=r()<0.6?'small':'none';
+  else if(type==='star') g.wings=r()<0.3?'small':'none';
+  else g.wings='none';
+  // tail
+  if(type==='fire') g.tail='flame';
+  else if(type==='water') g.tail=r()<0.6?'fin':'none';
+  else if(type==='dragon') g.tail='spike';
+  else if(type==='normal'||type==='rock') g.tail=r()<0.3?'wave':'none';
+  else g.tail='none';
+  // spots / eyes / mouth
+  g.spots=r()<0.32;
+  if(tier==='legendary') g.eye=r()<0.7?'star':'round';
+  else if(type==='ghost') g.eye='glow';
+  else g.eye=pick(r,['normal','normal','round','sleepy']);
+  g.mouth=Math.floor(r()*3);
+  g.blush=r()<0.4&&type!=='ghost';
+  return g;
+}
+
+/* ================= SVG 파츠 ================= */
+function eyesN(x1,x2,y,r){r=r||6.5;
+  return '<circle cx="'+x1+'" cy="'+y+'" r="'+r+'" fill="#fff"/><circle cx="'+x2+'" cy="'+y+'" r="'+r+'" fill="#fff"/>'+
+    '<circle cx="'+(x1+1)+'" cy="'+(y+1)+'" r="'+(r*0.45)+'" fill="#2A2A33"/><circle cx="'+(x2+1)+'" cy="'+(y+1)+'" r="'+(r*0.45)+'" fill="#2A2A33"/>';
+}
+function starEye(x,y){
+  return '<path d="M'+x+' '+(y-6)+' l1.6 4 l4.4 0 l-3.5 2.6 l1.3 4.2 l-3.8-2.6 l-3.8 2.6 l1.3-4.2 l-3.5-2.6 l4.4 0 Z" fill="#FFE27A"/>';
+}
+function drawEyes(style,x1,x2,y){
+  if(style==='sleepy') return '<path d="M'+(x1-5)+' '+y+' q5 4 10 0" stroke="#2A2A33" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M'+(x2-5)+' '+y+' q5 4 10 0" stroke="#2A2A33" stroke-width="2.4" fill="none" stroke-linecap="round"/>';
+  if(style==='glow') return '<circle cx="'+x1+'" cy="'+y+'" r="6" fill="#FFE27A"/><circle cx="'+x2+'" cy="'+y+'" r="6" fill="#FFE27A"/><circle cx="'+x1+'" cy="'+y+'" r="2.6" fill="#2A2A33"/><circle cx="'+x2+'" cy="'+y+'" r="2.6" fill="#2A2A33"/>';
+  if(style==='star') return starEye(x1,y)+starEye(x2,y);
+  return eyesN(x1,x2,y,style==='round'?8:6.5);
+}
+function drawMouth(m,y){
+  if(m===0) return '<path d="M46 '+y+' q4 3.5 8 0" stroke="rgba(0,0,0,.4)" stroke-width="2" fill="none" stroke-linecap="round"/>';
+  if(m===1) return '<line x1="47" y1="'+y+'" x2="53" y2="'+y+'" stroke="rgba(0,0,0,.38)" stroke-width="2" stroke-linecap="round"/>';
+  return '<ellipse cx="50" cy="'+(y+1)+'" rx="3.6" ry="2.8" fill="rgba(120,30,30,.55)"/>';
+}
+function drawBody(g){
+  var c=g.c, cl=g.cl;
+  switch(g.body){
+    case 'blob': return {svg:'<path d="M22 56 q0 -30 28 -30 q28 0 28 30 q0 26 -28 26 q-28 0 -28 -26 Z" fill="'+c+'"/><ellipse cx="50" cy="64" rx="16" ry="12" fill="'+cl+'" opacity=".45"/>', ey:52, ex1:41, ex2:59};
+    case 'tear': return {svg:'<path d="M50 22 C33 46 25 58 25 68 a25 25 0 0 0 50 0 C75 58 67 46 50 22 Z" fill="'+c+'"/><path d="M40 44 C35 52 34 58 39 60 C43 54 43 48 40 44 Z" fill="rgba(255,255,255,.45)"/>', ey:62, ex1:42, ex2:58};
+    case 'tall': return {svg:'<ellipse cx="50" cy="56" rx="24" ry="31" fill="'+c+'"/><ellipse cx="50" cy="64" rx="13" ry="16" fill="'+cl+'" opacity=".45"/>', ey:48, ex1:43, ex2:57};
+    case 'quad': return {svg:'<rect x="30" y="62" width="9" height="15" rx="4" fill="'+g.c2+'"/><rect x="61" y="62" width="9" height="15" rx="4" fill="'+g.c2+'"/><ellipse cx="50" cy="52" rx="30" ry="22" fill="'+c+'"/><ellipse cx="50" cy="58" rx="17" ry="11" fill="'+cl+'" opacity=".4"/>', ey:48, ex1:42, ex2:58};
+    case 'ghost': return {svg:'<path d="M50 24 a24 24 0 0 1 24 24 v26 l-8 -6 l-8 6 l-8 -6 l-8 6 l-8 -6 l-8 6 V48 a24 24 0 0 1 24 -24 Z" fill="'+c+'" opacity=".95"/>', ey:46, ex1:42, ex2:58};
+    case 'gem': return {svg:'<path d="M50 24 L74 46 L61 78 L39 78 L26 46 Z" fill="'+c+'" stroke="'+g.c2+'" stroke-width="1.5"/><path d="M50 24 L61 78 L50 60 Z" fill="#fff" opacity=".18"/>', ey:50, ex1:43, ex2:57};
+    default: return {svg:'<circle cx="50" cy="56" r="30" fill="'+c+'"/><ellipse cx="50" cy="64" rx="17" ry="13" fill="'+cl+'" opacity=".45"/>', ey:52, ex1:41, ex2:59};
+  }
+}
+function drawEars(g){
+  if(g.ears==='cat') return '<path d="M32 40 L28 22 L44 34 Z" fill="'+g.c+'"/><path d="M35 37 L32 27 L41 33 Z" fill="'+g.c2+'"/><path d="M68 40 L72 22 L56 34 Z" fill="'+g.c+'"/><path d="M65 37 L68 27 L59 33 Z" fill="'+g.c2+'"/>';
+  if(g.ears==='round') return '<circle cx="33" cy="34" r="10" fill="'+g.c+'"/><circle cx="67" cy="34" r="10" fill="'+g.c+'"/><circle cx="33" cy="34" r="5" fill="'+g.c2+'"/><circle cx="67" cy="34" r="5" fill="'+g.c2+'"/>';
+  if(g.ears==='antenna') return '<line x1="42" y1="30" x2="36" y2="16" stroke="'+g.c2+'" stroke-width="2.4" stroke-linecap="round"/><circle cx="36" cy="15" r="3.4" fill="'+g.c2+'"/><line x1="58" y1="30" x2="64" y2="16" stroke="'+g.c2+'" stroke-width="2.4" stroke-linecap="round"/><circle cx="64" cy="15" r="3.4" fill="'+g.c2+'"/>';
+  return '';
+}
+function drawHorns(g){ if(!g.horns) return '';
+  return '<path d="M40 28 L44 12 L48 28 Z" fill="'+g.c2+'"/><path d="M60 28 L56 12 L52 28 Z" fill="'+g.c2+'"/>';
+}
+function drawTop(g){
+  switch(g.top){
+    case 'leaf': return '<path d="M50 30 C50 16 62 12 70 14 C66 25 58 30 50 30 Z" fill="'+g.c2+'"/><line x1="50" y1="30" x2="62" y2="18" stroke="rgba(255,255,255,.4)" stroke-width="1.5"/>';
+    case 'sprout': return '<line x1="50" y1="30" x2="50" y2="18" stroke="'+g.c2+'" stroke-width="3" stroke-linecap="round"/><path d="M50 20 C50 12 58 10 62 12 C58 20 54 22 50 20 Z" fill="'+g.c2+'"/><path d="M50 24 C50 17 43 15 39 17 C43 24 46 26 50 24 Z" fill="'+g.c2+'"/>';
+    case 'flame': return '<path d="M50 30 q-8 -10 -2 -20 q2 6 6 8 q0 -10 4 -14 q6 12 -2 26 Z" fill="'+g.c2+'"/><path d="M50 28 q-3 -6 0 -12 q4 5 0 12 Z" fill="#FFE27A"/>';
+    case 'bolt': return '<path d="M56 12 L44 30 L52 30 L44 44" stroke="'+g.c2+'" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+    case 'crystal': return '<path d="M44 30 L46 14 L50 28 Z" fill="'+g.c2+'"/><path d="M50 28 L54 12 L58 30 Z" fill="'+g.c2+'"/>';
+    case 'star': return '<path d="M50 8 l2.2 5.6 l6 0 l-4.8 3.6 l1.8 5.8 l-5.2-3.6 l-5.2 3.6 l1.8-5.8 l-4.8-3.6 l6 0 Z" fill="'+g.c2+'"/>';
+    case 'fin': return '<path d="M42 28 Q50 12 58 28 Z" fill="'+g.c2+'"/>';
+    default: return '';
+  }
+}
+function drawWings(g){
+  if(g.wings==='wide') return '<path d="M24 52 Q4 40 8 62 Q18 60 30 58 Z" fill="'+g.cl+'" opacity=".9" stroke="'+g.c2+'" stroke-width="1"/><path d="M76 52 Q96 40 92 62 Q82 60 70 58 Z" fill="'+g.cl+'" opacity=".9" stroke="'+g.c2+'" stroke-width="1"/>';
+  if(g.wings==='small') return '<path d="M28 50 Q14 44 16 58 Q24 55 32 55 Z" fill="'+g.cl+'" opacity=".9"/><path d="M72 50 Q86 44 84 58 Q76 55 68 55 Z" fill="'+g.cl+'" opacity=".9"/>';
+  return '';
+}
+function drawTail(g){
+  if(g.tail==='flame') return '<path d="M74 60 q16 -4 12 -22 q10 12 -2 28 q6 8 -10 4 Z" fill="'+g.c2+'"/>';
+  if(g.tail==='fin') return '<path d="M74 58 q18 -2 16 12 q-10 -4 -16 0 Z" fill="'+g.c2+'"/>';
+  if(g.tail==='spike') return '<path d="M74 60 q18 4 22 -6 q-4 12 -18 14 Z" fill="'+g.c2+'"/>';
+  if(g.tail==='wave') return '<path d="M74 62 q14 2 12 -8 q8 8 -2 16 q-6 2 -10 -8 Z" fill="'+g.c2+'"/>';
+  return '';
+}
+function drawSpots(g){ if(!g.spots) return '';
+  return '<circle cx="38" cy="'+ (g.eyeY?g.eyeY:52) +'" r="0"/>'; // placeholder replaced below
+}
+function monInner(g){
+  var b=drawBody(g);
+  var s='';
+  s+=drawWings(g);
+  s+=drawTail(g);
+  s+=b.svg;
+  if(g.spots){ s+='<circle cx="36" cy="'+(b.ey+8)+'" r="3" fill="'+g.c2+'" opacity=".55"/><circle cx="64" cy="'+(b.ey+10)+'" r="2.4" fill="'+g.c2+'" opacity=".55"/><circle cx="52" cy="'+(b.ey+14)+'" r="2.2" fill="'+g.c2+'" opacity=".5"/>'; }
+  s+=drawEars(g);
+  s+=drawHorns(g);
+  s+=drawTop(g);
+  if(g.blush){ s+='<ellipse cx="'+(b.ex1-6)+'" cy="'+(b.ey+8)+'" rx="5" ry="3.4" fill="rgba(255,120,150,.4)"/><ellipse cx="'+(b.ex2+6)+'" cy="'+(b.ey+8)+'" rx="5" ry="3.4" fill="rgba(255,120,150,.4)"/>'; }
+  s+=drawEyes(g.eye,b.ex1,b.ex2,b.ey);
+  s+=drawMouth(g.mouth,b.ey+11);
+  return s;
+}
+function monSVG(g){ return '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">'+monInner(g)+'</svg>'; }
+function logoSVG(){
+  return '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">'+
+    '<circle cx="50" cy="50" r="46" fill="#fff"/>'+
+    '<path d="M50 22 C33 46 25 58 25 68 a25 25 0 0 0 50 0 C75 58 67 46 50 22 Z" fill="#6D4AFF"/>'+
+    '<circle cx="43" cy="62" r="4.5" fill="#fff"/><circle cx="57" cy="62" r="4.5" fill="#fff"/>'+
+    '<path d="M45 71 q5 4 10 0" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>';
+}
+
+/* ================= 몬스터 빌드 ================= */
+var TYPE_ORDER=buildTypeOrder();
+var MONS=[], MONBYID={}, TOTAL_W=0;
+(function(){
+  for(var i=0;i<151;i++){
+    var id=i+1, type=TYPE_ORDER[i];
+    var tier=pickTier(type, rngFor(id,100));
+    var col=colorsFor(type, rngFor(id,200));
+    var m={id:id, name:makeName(id), type:type, tier:tier, weight:TIERDEF[tier].w,
+      flavor:flavorFor(id,type), genome:genomeFor(id,type,tier,col)};
+    MONS.push(m); MONBYID[id]=m; TOTAL_W+=m.weight;
+  }
+})();
+
+/* ================= 스폰 ================= */
+function cellMonster(cx,cy){
+  var r=mulberry32(hash2(cx,cy));
+  if(r()>SPAWN_RATE) return null;
+  var roll=r()*TOTAL_W, acc=0;
+  for(var i=0;i<MONS.length;i++){acc+=MONS[i].weight; if(roll<acc) return MONS[i].id;}
+  return MONS[MONS.length-1].id;
+}
+
+/* ================= 상태 ================= */
+var pos={lat:DEFAULT_POS.lat,lng:DEFAULT_POS.lng};
+var mode='gps', gpsOk=false, watchId=null, dex={}, caughtCells={}, curTab='explore';
+
+function load(){
+  try{dex=JSON.parse(localStorage.getItem('mobdex_dex_v1')||'{}');}catch(e){dex={};}
+  try{caughtCells=JSON.parse(localStorage.getItem('mobdex_cells_v1')||'{}');}catch(e){caughtCells={};}
+}
+function saveDex(){try{localStorage.setItem('mobdex_dex_v1',JSON.stringify(dex));}catch(e){}}
+function saveCells(){try{localStorage.setItem('mobdex_cells_v1',JSON.stringify(caughtCells));}catch(e){}}
+
+/* ================= 좌표 ================= */
+function metersBetween(lat1,lng1,lat2,lng2){
+  var dLat=(lat2-lat1)*111000, dLng=(lng2-lng1)*111000*Math.cos(lat1*Math.PI/180);
+  return {dLat:dLat,dLng:dLng,dist:Math.sqrt(dLat*dLat+dLng*dLng)};
+}
+function nearbyMonsters(){
+  var out=[], ccx=Math.floor(pos.lng/CELL), ccy=Math.floor(pos.lat/CELL), now=Date.now();
+  for(var dx=-SCAN;dx<=SCAN;dx++)for(var dy=-SCAN;dy<=SCAN;dy++){
+    var cx=ccx+dx, cy=ccy+dy, mid=cellMonster(cx,cy);
+    if(!mid) continue;
+    var key=cx+','+cy;
+    if(caughtCells[key]&&(now-caughtCells[key])<COOLDOWN) continue;
+    var slng=(cx+0.5)*CELL, slat=(cy+0.5)*CELL, mb=metersBetween(pos.lat,pos.lng,slat,slng);
+    if(mb.dist>MAP_RADIUS_M+20) continue;
+    out.push({id:mid,key:key,dLat:mb.dLat,dLng:mb.dLng,dist:mb.dist});
+  }
+  out.sort(function(a,b){return a.dist-b.dist;});
+  return out;
+}
+
+/* ================= 렌더 ================= */
+function renderMap(){
+  var wrap=document.getElementById('mapWrap');
+  var olds=wrap.querySelectorAll('.mon-marker'); for(var i=0;i<olds.length;i++) olds[i].remove();
+  var W=wrap.clientWidth||320, R=W/2, pxPerM=R/MAP_RADIUS_M;
+  var ring=document.getElementById('rangeRing'); ring.style.width=(CATCH_RANGE*pxPerM*2)+'px'; ring.style.height=(CATCH_RANGE*pxPerM*2)+'px';
+  var list=nearbyMonsters();
+  for(var j=0;j<list.length;j++){
+    var mo=list[j], x=R+mo.dLng*pxPerM, y=R-mo.dLat*pxPerM;
+    if(x<8||x>W-8||y<8||y>W-8) continue;
+    var m=MONBYID[mo.id], caught=!!dex[mo.id];
+    var el=document.createElement('div');
+    el.className='mon-marker'+(mo.dist<=CATCH_RANGE?' inrange':'');
+    el.style.left=x+'px'; el.style.top=y+'px';
+    var rare = (m.tier==='rare'||m.tier==='legendary') ? '<div class="rare-dot" style="background:'+TIERDEF[m.tier].c+'"></div>' : '';
+    el.innerHTML=monSVG(m.genome)+(caught?'':'<div class="qmark">?</div>')+rare;
+    (function(mm){el.onclick=function(){ if(mm.dist<=CATCH_RANGE) startCatch(mm); else toast(Math.round(mm.dist)+'m 더 가까이 가야 해요'); };})(mo);
+    wrap.appendChild(el);
+  }
+  renderCatchZone(list);
+}
+function renderCatchZone(list){
+  var zone=document.getElementById('catchZone');
+  var inr=list.filter(function(m){return m.dist<=CATCH_RANGE;});
+  if(inr.length){
+    var mo=inr[0], m=MONBYID[mo.id], caught=!!dex[mo.id];
+    zone.innerHTML='<div class="catch-card"><div class="cc-icon">'+monSVG(m.genome)+'</div>'+
+      '<div class="cc-info"><b>'+(caught?m.name:'수상한 몬스터')+'</b><div class="dist near">바로 앞에 있어요!</div></div>'+
+      '<button class="cc-btn" id="btnCatch">잡기</button></div>';
+    document.getElementById('btnCatch').onclick=function(){ startCatch(mo); };
+  } else if(list.length){
+    zone.innerHTML='<div class="empty-hint">가장 가까운 몬스터까지 <b style="color:var(--p-d)">'+Math.round(list[0].dist)+'m</b><br>조금만 더 다가가 보세요</div>';
+  } else {
+    zone.innerHTML='<div class="empty-hint">주변에 몬스터가 없어요.<br>조금 걸어서 이동해 보세요 🚶</div>';
+  }
+}
+function updateCounts(){
+  var got=Object.keys(dex).length;
+  document.getElementById('catchCount').textContent=got+' / '+MONS.length;
+  document.getElementById('dexProgress').textContent=got+'마리 발견';
+}
+function renderDex(){
+  var g=document.getElementById('dexGrid'); g.innerHTML='';
+  for(var i=0;i<MONS.length;i++){
+    var m=MONS[i], caught=!!dex[m.id];
+    var cell=document.createElement('div');
+    cell.className='dex-cell'+(caught?'':' locked');
+    var rb=(caught&&(m.tier==='rare'||m.tier==='legendary'))?'<div class="rb" style="background:'+TIERDEF[m.tier].c+'"></div>':'';
+    cell.innerHTML=rb+'<div class="num">No.'+String(m.id).padStart(3,'0')+'</div><div class="art">'+monSVG(m.genome)+'</div>'+
+      '<div class="nm">'+(caught?m.name:'???')+'</div><div class="cnt">'+(caught?'×'+dex[m.id].count:'')+'</div>';
+    (function(mm){cell.onclick=function(){openSheet(mm.id);};})(m);
+    g.appendChild(cell);
+  }
+}
+function openSheet(id){
+  var m=MONBYID[id], caught=!!dex[id], t=TYPEDEF[m.type], ti=TIERDEF[m.tier], body;
+  if(caught){
+    var d=dex[id], dt=new Date(d.firstAt), dstr=dt.getFullYear()+'.'+(dt.getMonth()+1)+'.'+dt.getDate();
+    body='<div class="big-art">'+monSVG(m.genome)+'</div><h2>'+m.name+'</h2>'+
+      '<div class="badges"><span class="tbadge" style="background:'+t.badge+'">'+t.n+'</span><span class="tbadge" style="background:'+ti.c+'">'+ti.n+'</span></div>'+
+      '<div class="flavor">'+m.flavor+'</div>'+
+      '<div class="meta"><span>처음 만난 날 '+dstr+'</span><span>잡은 횟수 '+d.count+'번</span></div>';
+  } else {
+    body='<div class="big-art" style="filter:grayscale(1) brightness(.55) opacity(.5)">'+monSVG(m.genome)+'</div>'+
+      '<h2 style="color:var(--text3)">???</h2><div class="badges"><span class="tbadge" style="background:#C7C7D2">No.'+String(id).padStart(3,'0')+'</span></div>'+
+      '<div class="locked-msg">아직 만나지 못한 몬스터예요.<br>동네를 더 탐험해 보세요!</div>';
+  }
+  document.getElementById('sheet').innerHTML='<div class="grab"></div>'+body;
+  document.getElementById('sheetBg').classList.add('on'); document.getElementById('sheet').classList.add('on');
+}
+function closeSheet(){document.getElementById('sheetBg').classList.remove('on'); document.getElementById('sheet').classList.remove('on');}
+
+/* ================= 잡기 연출 ================= */
+var fxBusy=false;
+function startCatch(mo){
+  if(fxBusy) return; fxBusy=true;
+  var m=MONBYID[mo.id], g=m.genome, isNew=!dex[mo.id];
+  // 등록은 연출 시작 시 확정(중복 방지)
+  if(!dex[mo.id]) dex[mo.id]={count:0,firstAt:Date.now()};
+  dex[mo.id].count++; saveDex();
+  caughtCells[mo.key]=Date.now(); saveCells();
+
+  var fx=document.getElementById('catchFx'), mon=document.getElementById('fxMon'),
+      orb=document.getElementById('fxOrb'), flash=document.getElementById('fxFlash'),
+      res=document.getElementById('fxResult');
+  // reset
+  mon.className=''; orb.className=''; flash.className=''; res.className=''; res.innerHTML='';
+  var pars=fx.querySelectorAll('.fxpar'); for(var i=0;i<pars.length;i++) pars[i].remove();
+  mon.innerHTML=monSVG(g); orb.style.transition='none'; orb.style.top='90%';
+  fx.classList.add('on');
+  requestAnimationFrame(function(){
+    mon.classList.add('in');
+    setTimeout(function(){ orb.style.transition=''; orb.classList.add('fly'); },420);
+    setTimeout(function(){ mon.classList.add('shake'); },820);
+    setTimeout(function(){
+      flash.classList.add('go'); orb.classList.add('hide'); mon.classList.remove('shake'); mon.classList.add('gone');
+      spawnParticles(fx, g.c);
+    },1180);
+    setTimeout(function(){ showResult(m,isNew); },1700);
+  });
+}
+function spawnParticles(fx,color){
+  var cols=[color,'#FFE27A','#fff'];
+  for(var i=0;i<12;i++){
+    var p=document.createElement('div'); p.className='fxpar';
+    p.style.background=cols[i%3];
+    fx.appendChild(p);
+    (function(el,ang){
+      var dist=70+Math.random()*40, dx=Math.cos(ang)*dist, dy=Math.sin(ang)*dist;
+      requestAnimationFrame(function(){
+        el.style.transition='transform .6s ease-out, opacity .6s ease-out';
+        el.style.opacity='1';
+        el.style.transform='translate(-50%,-50%) translate('+dx+'px,'+dy+'px) scale(0)';
+        setTimeout(function(){el.style.opacity='0';},50);
+      });
+    })(p, (i/12)*Math.PI*2);
+  }
+}
+function showResult(m,isNew){
+  var res=document.getElementById('fxResult'), t=TYPEDEF[m.type], ti=TIERDEF[m.tier];
+  res.innerHTML='<div class="rart">'+monSVG(m.genome)+'</div>'+
+    (isNew?'<div class="newbadge">NEW 새로운 발견!</div>':'')+
+    '<h3>'+m.name+'</h3>'+
+    '<div class="rtype"><span class="tbadge" style="background:'+t.badge+'">'+t.n+'</span> <span class="tbadge" style="background:'+ti.c+'">'+ti.n+'</span></div>'+
+    '<div class="cont">화면을 탭하면 계속</div>';
+  res.classList.add('on');
+  document.getElementById('catchFx').onclick=endCatch;
+}
+function endCatch(){
+  var fx=document.getElementById('catchFx');
+  fx.classList.remove('on'); fx.onclick=null;
+  document.getElementById('fxResult').className='';
+  fxBusy=false;
+  updateCounts(); renderMap(); if(curTab==='dex') renderDex();
+}
+
+/* ================= 위치/모드 ================= */
+function setGpsStatus(ok,label){document.getElementById('gpsStat').innerHTML='<span class="led'+(ok?'':' off')+'"></span>'+label;}
+function startGeo(){
+  if(!navigator.geolocation){fallbackTest('GPS 미지원 · 테스트 모드'); return;}
+  setGpsStatus(false,'위치 확인 중…');
+  try{
+    watchId=navigator.geolocation.watchPosition(function(p){
+      if(mode!=='gps') return;
+      gpsOk=true; pos.lat=p.coords.latitude; pos.lng=p.coords.longitude;
+      var acc=p.coords.accuracy?Math.round(p.coords.accuracy):null;
+      setGpsStatus(true,'GPS 연결됨'+(acc?' · 정확도 '+acc+'m':''));
+      renderMap();
+    },function(){ fallbackTest('위치 권한 없음 · 테스트 모드'); },
+    {enableHighAccuracy:true,maximumAge:5000,timeout:9000});
+  }catch(e){ fallbackTest('GPS 오류 · 테스트 모드'); }
+}
+function fallbackTest(msg){
+  mode='test'; gpsOk=false;
+  document.getElementById('dpad').classList.add('on');
+  document.getElementById('modeToggle').textContent='GPS 켜기';
+  setGpsStatus(false,msg||'테스트 모드'); renderMap();
+}
+function toggleMode(){
+  if(mode==='gps'){
+    mode='test'; document.getElementById('dpad').classList.add('on');
+    document.getElementById('modeToggle').textContent='GPS 켜기'; setGpsStatus(false,'테스트 모드 · 가상 이동');
+  } else {
+    mode='gps'; document.getElementById('dpad').classList.remove('on');
+    document.getElementById('modeToggle').textContent='테스트 이동'; startGeo();
+  }
+  renderMap();
+}
+function vmove(ex,ny){
+  pos.lat+=(ny*STEP_M)/111000;
+  pos.lng+=(ex*STEP_M)/(111000*Math.cos(pos.lat*Math.PI/180));
+  renderMap();
+}
+
+/* ================= 탭 ================= */
+function switchTab(t){
+  curTab=t;
+  document.getElementById('tabExplore').classList.toggle('on',t==='explore');
+  document.getElementById('tabDex').classList.toggle('on',t==='dex');
+  document.getElementById('pageExplore').classList.toggle('on',t==='explore');
+  document.getElementById('pageDex').classList.toggle('on',t==='dex');
+  if(t==='dex') renderDex(); if(t==='explore') renderMap();
+}
+
+/* ================= toast ================= */
+var toastTimer=null;
+function toast(msg){var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on');
+  if(toastTimer) clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.classList.remove('on');},1800);}
+
+/* ================= 시작 ================= */
+function startApp(){
+  document.getElementById('intro').style.display='none';
+  try{ if(window.setScreenAwakeMode) window.setScreenAwakeMode('always'); }catch(e){}
+  startGeo(); renderMap();
+  setInterval(function(){ if(curTab==='explore'&&!fxBusy) renderMap(); },3000);
+}
+function init(){
+  document.getElementById('introLogo').innerHTML=logoSVG();
+  document.getElementById('headLogo').innerHTML=logoSVG();
+  load(); updateCounts(); renderDex();
+}
+if(typeof document!=='undefined' && document.getElementById('introLogo')) init();
+</script>
+</body>
+</html>
