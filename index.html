@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>동네몬스터 v0.4</title>
+<title>동네몬스터 v0.7</title>
 <style>
   :root{
     --p:#6D4AFF; --p-d:#5A38E0; --p-soft:#EDE9FF;
@@ -114,6 +114,11 @@
   .dex-cell .nm{font-size:13px; font-weight:700; letter-spacing:-.2px;}
   .dex-cell.locked .nm{color:var(--text3);}
   .dex-cell .cnt{font-size:10.5px; font-weight:700; color:var(--p-d); margin-top:2px; min-height:13px;}
+  .lvchip{display:inline-block; background:var(--p); color:#fff; font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px;}
+  .lvblock{margin:2px 0 14px;}
+  .lvbar{height:9px; background:var(--line); border-radius:999px; overflow:hidden;}
+  .lvbar > i{display:block; height:100%; background:var(--p); border-radius:999px; transition:width .4s ease;}
+  .lvinfo{font-size:12.5px; font-weight:700; color:var(--text2); margin-top:7px; text-align:center;}
   .dex-cell .rb{position:absolute; top:7px; right:7px; width:9px; height:9px; border-radius:50%;}
 
   .tbadge{display:inline-block; font-size:11px; font-weight:800; color:#fff; padding:3px 9px; border-radius:999px;}
@@ -155,13 +160,18 @@
   #fxFlash.go{animation:fxFlash .5s ease-out forwards;}
   @keyframes fxFlash{0%{opacity:.9; width:10px; height:10px;}100%{opacity:0; width:260px; height:260px;}}
   .fxpar{position:absolute; top:38%; left:50%; width:9px; height:9px; border-radius:50%; opacity:0;}
-  #fxResult{position:absolute; top:0; left:0; right:0; bottom:0; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 30px;}
+  .mon-marker.unknown svg{filter:brightness(0) opacity(.5);}
+  .catch-card .cc-icon.unknown svg{filter:brightness(0) opacity(.5);}
+  #fxResult{position:absolute; top:0; left:0; right:0; bottom:0; display:none; align-items:center; justify-content:center; padding:0 24px;}
   #fxResult.on{display:flex;}
-  #fxResult .rart{width:150px; height:150px; margin-bottom:6px; animation:fxIn .5s cubic-bezier(.2,1.4,.4,1) both;}
-  #fxResult .newbadge{display:inline-block; background:#FFC93C; color:#5A3B00; font-size:12.5px; font-weight:900; padding:4px 12px; border-radius:999px; margin-bottom:10px; letter-spacing:.5px;}
-  #fxResult h3{color:#fff; font-size:26px; font-weight:900; margin:0 0 6px;}
-  #fxResult .rtype{margin-bottom:26px;}
-  #fxResult .cont{color:rgba(255,255,255,.75); font-size:13.5px; font-weight:700;}
+  .fxcard{background:#fff; border-radius:22px; padding:20px 22px 16px; width:266px; max-width:82%; text-align:center; box-shadow:0 16px 40px rgba(0,0,0,.32); animation:cardPop .42s cubic-bezier(.2,1.4,.4,1) both;}
+  @keyframes cardPop{0%{transform:scale(.6); opacity:0;}100%{transform:scale(1); opacity:1;}}
+  .fxcard .newbadge{display:inline-block; background:#FFC93C; color:#5A3B00; font-size:12px; font-weight:900; padding:4px 12px; border-radius:999px; margin-bottom:8px; letter-spacing:.4px;}
+  .fxcard .cart{width:100px; height:100px; margin:2px auto 4px;}
+  .fxcard h3{font-size:21px; font-weight:900; margin:0 0 9px; color:#2A2A33;}
+  .fxcard .cbadges{display:flex; gap:6px; justify-content:center; margin-bottom:15px;}
+  .fxcard .cbtn{width:100%; background:var(--p); color:#fff; font-size:15px; font-weight:800; padding:12px 0; border-radius:14px;}
+  .fxcard .cbtn:active{background:var(--p-d);}
 
   #toast{position:fixed; left:50%; bottom:32px; transform:translateX(-50%) translateY(20px); background:#2A2A33; color:#fff;
     font-size:14px; font-weight:700; padding:12px 22px; border-radius:999px; z-index:80; opacity:0; pointer-events:none;
@@ -233,6 +243,7 @@
 var CELL=0.00035, SPAWN_RATE=0.22, CATCH_RANGE=25, MAP_RADIUS_M=150, SCAN=6, STEP_M=8;
 var COOLDOWN=6*60*60*1000;
 var DEFAULT_POS={lat:37.5665, lng:126.9780};
+var HIDE_UNCAUGHT=true; // 안 잡은 몬스터는 실루엣(?)으로 표시
 
 /* ===== 아트/생성 모듈 v0.4 ===== */
 /* ===== RNG ===== */
@@ -517,7 +528,7 @@ function renderMap(){
     if(x<8||x>W-8||y<8||y>W-8) continue;
     var m=MONBYID[mo.id], caught=!!dex[mo.id];
     var el=document.createElement('div');
-    el.className='mon-marker'+(mo.dist<=CATCH_RANGE?' inrange':'');
+    el.className='mon-marker'+(mo.dist<=CATCH_RANGE?' inrange':'')+((!caught&&HIDE_UNCAUGHT)?' unknown':'');
     el.style.left=x+'px'; el.style.top=y+'px';
     var rare=(m.tier==='rare'||m.tier==='legendary')?'<div class="rare-dot" style="background:'+TIERDEF[m.tier].c+'"></div>':'';
     el.innerHTML=monSVG(m.genome)+(caught?'':'<div class="qmark">?</div>')+rare;
@@ -541,7 +552,7 @@ function renderCatchZone(list){
   var inr=list.filter(function(m){return m.dist<=CATCH_RANGE;});
   if(inr.length){
     var mo=inr[0], m=MONBYID[mo.id], caught=!!dex[mo.id];
-    zone.innerHTML='<div class="catch-card"><div class="cc-icon">'+monSVG(m.genome)+'</div>'+
+    zone.innerHTML='<div class="catch-card"><div class="cc-icon'+((!caught&&HIDE_UNCAUGHT)?' unknown':'')+'">'+monSVG(m.genome)+'</div>'+
       '<div class="cc-info"><b>'+(caught?m.name:'수상한 몬스터')+'</b><div class="dist near">바로 앞에 있어요!</div></div>'+
       '<button class="cc-btn" id="btnCatch">잡기</button></div>';
     document.getElementById('btnCatch').onclick=function(){ startCatch(mo); };
@@ -556,6 +567,15 @@ function updateCounts(){
   document.getElementById('catchCount').textContent=got+' / '+MONS.length;
   document.getElementById('dexProgress').textContent=got+'마리 발견';
 }
+/* ================= 레벨 (10번 잡을 때마다 레벨업, 최고 Lv.5) ================= */
+var LV_STEP=10, LV_MAX=5;
+function monLevel(count){ return Math.min(LV_MAX, Math.floor(count/LV_STEP)+1); }
+function levelInfo(count){
+  var lv=monLevel(count);
+  if(lv>=LV_MAX) return {lv:LV_MAX, prog:1, remain:0, max:true};
+  var base=(lv-1)*LV_STEP;
+  return {lv:lv, prog:(count-base)/LV_STEP, remain:(lv*LV_STEP-count), max:false};
+}
 function renderDex(){
   var g=document.getElementById('dexGrid'); g.innerHTML='';
   for(var i=0;i<MONS.length;i++){
@@ -564,7 +584,7 @@ function renderDex(){
     cell.className='dex-cell'+(caught?'':' locked');
     var rb=(caught&&(m.tier==='rare'||m.tier==='legendary'))?'<div class="rb" style="background:'+TIERDEF[m.tier].c+'"></div>':'';
     cell.innerHTML=rb+'<div class="num">No.'+String(m.id).padStart(3,'0')+'</div><div class="art">'+monSVG(m.genome)+'</div>'+
-      '<div class="nm">'+(caught?m.name:'???')+'</div><div class="cnt">'+(caught?'×'+dex[m.id].count:'')+'</div>';
+      '<div class="nm">'+(caught?m.name:'???')+'</div><div class="cnt">'+(caught?('Lv.'+monLevel(dex[m.id].count)+' · '+dex[m.id].count+'번'):'')+'</div>';
     (function(mm){cell.onclick=function(){openSheet(mm.id);};})(m);
     g.appendChild(cell);
   }
@@ -573,10 +593,12 @@ function openSheet(id){
   var m=MONBYID[id], caught=!!dex[id], t=TYPEDEF[m.type], ti=TIERDEF[m.tier], body;
   if(caught){
     var d=dex[id], dt=new Date(d.firstAt), dstr=dt.getFullYear()+'.'+(dt.getMonth()+1)+'.'+dt.getDate();
+    var li=levelInfo(d.count);
     body='<div class="big-art">'+monSVG(m.genome)+'</div><h2>'+m.name+'</h2>'+
-      '<div class="badges"><span class="tbadge" style="background:'+t.badge+'">'+t.n+'</span><span class="tbadge" style="background:'+ti.c+'">'+ti.n+'</span></div>'+
+      '<div class="badges"><span class="tbadge" style="background:'+t.badge+'">'+t.n+'</span><span class="tbadge" style="background:'+ti.c+'">'+ti.n+'</span><span class="lvchip">Lv.'+li.lv+'</span></div>'+
+      '<div class="lvblock"><div class="lvbar"><i style="width:'+Math.round(li.prog*100)+'%"></i></div><div class="lvinfo">'+(li.max?'⭐ 최고 레벨 달성!':('다음 레벨까지 '+li.remain+'번 더'))+'</div></div>'+
       '<div class="flavor">'+m.flavor+'</div>'+
-      '<div class="meta"><span>처음 만난 날 '+dstr+'</span><span>잡은 횟수 '+d.count+'번</span></div>';
+      '<div class="meta"><span>처음 만난 날 '+dstr+'</span><span>총 '+d.count+'번 잡음</span></div>';
   } else {
     body='<div class="big-art" style="filter:grayscale(1) brightness(.55) opacity(.5)">'+monSVG(m.genome)+'</div>'+
       '<h2 style="color:var(--text3)">???</h2><div class="badges"><span class="tbadge" style="background:#C7C7D2">No.'+String(id).padStart(3,'0')+'</span></div>'+
@@ -592,9 +614,13 @@ var fxBusy=false;
 function startCatch(mo){
   if(fxBusy) return; fxBusy=true;
   var m=MONBYID[mo.id], g=m.genome, isNew=!dex[mo.id];
+  var before=dex[mo.id]?dex[mo.id].count:0;
   // 등록은 연출 시작 시 확정(중복 방지)
   if(!dex[mo.id]) dex[mo.id]={count:0,firstAt:Date.now()};
   dex[mo.id].count++; saveDex();
+  var after=dex[mo.id].count;
+  var leveledUp = monLevel(after) > monLevel(before);
+  var lvNow = monLevel(after);
   caughtCells[mo.key]=Date.now(); saveCells();
 
   var fx=document.getElementById('catchFx'), mon=document.getElementById('fxMon'),
@@ -613,7 +639,7 @@ function startCatch(mo){
       flash.classList.add('go'); orb.classList.add('hide'); mon.classList.remove('shake'); mon.classList.add('gone');
       spawnParticles(fx, g.c);
     },1180);
-    setTimeout(function(){ showResult(m,isNew); },1700);
+    setTimeout(function(){ showResult(m,isNew,leveledUp,lvNow); },1700);
   });
 }
 function spawnParticles(fx,color){
@@ -633,13 +659,15 @@ function spawnParticles(fx,color){
     })(p, (i/12)*Math.PI*2);
   }
 }
-function showResult(m,isNew){
+function showResult(m,isNew,leveledUp,lvNow){
   var res=document.getElementById('fxResult'), t=TYPEDEF[m.type], ti=TIERDEF[m.tier];
-  res.innerHTML='<div class="rart">'+monSVG(m.genome)+'</div>'+
-    (isNew?'<div class="newbadge">NEW 새로운 발견!</div>':'')+
+  var banner = isNew ? '<div class="newbadge">NEW 새로운 발견!</div>'
+             : (leveledUp ? '<div class="newbadge" style="background:#6D4AFF;color:#fff">🎉 레벨업! Lv.'+lvNow+'</div>' : '');
+  res.innerHTML='<div class="fxcard">'+banner+
+    '<div class="cart">'+monSVG(m.genome)+'</div>'+
     '<h3>'+m.name+'</h3>'+
-    '<div class="rtype"><span class="tbadge" style="background:'+t.badge+'">'+t.n+'</span> <span class="tbadge" style="background:'+ti.c+'">'+ti.n+'</span></div>'+
-    '<div class="cont">화면을 탭하면 계속</div>';
+    '<div class="cbadges"><span class="tbadge" style="background:'+t.badge+'">'+t.n+'</span><span class="tbadge" style="background:'+ti.c+'">'+ti.n+'</span><span class="lvchip">Lv.'+lvNow+'</span></div>'+
+    '<button class="cbtn">확인</button></div>';
   res.classList.add('on');
   document.getElementById('catchFx').onclick=endCatch;
 }
@@ -653,35 +681,64 @@ function endCatch(){
 
 /* ================= 위치/모드 ================= */
 function setGpsStatus(ok,label){document.getElementById('gpsStat').innerHTML='<span class="led'+(ok?'':' off')+'"></span>'+label;}
+var aitStop=null;
+function handleLoc(lat,lng,heading,acc){
+  if(mode!=='gps') return;
+  gpsOk=true; pos.lat=lat; pos.lng=lng;
+  if(heading!=null && !isNaN(heading) && heading>=0) gpsHeading=heading;
+  var comp = headingValid ? ' · 나침반' : (gpsHeading!=null ? ' · 이동방향' : '');
+  setGpsStatus(true,'위치 연결됨'+(acc?' · '+Math.round(acc)+'m':'')+comp);
+  renderMap();
+}
+function beginAIT(AIT){
+  try{
+    if(aitStop){ aitStop(); aitStop=null; }
+    aitStop=AIT.startUpdateLocation({
+      options:{ accuracy:(AIT.Accuracy?AIT.Accuracy.BestForNavigation:6), timeInterval:1000, distanceInterval:5 },
+      onEvent:function(loc){ var c=(loc&&loc.coords)||{}; handleLoc(c.latitude,c.longitude,c.heading,c.accuracy); },
+      onError:function(){ fallbackTest('위치 권한 없음 · 체험 모드'); }
+    });
+  }catch(e){ fallbackTest('위치 오류 · 체험 모드'); }
+}
 function startGeo(){
-  if(!navigator.geolocation){fallbackTest('GPS 미지원 · 테스트 모드'); return;}
+  var AIT=window.__AIT_LOC;                 // 토스(granite) 환경이면 주입됨
+  if(AIT && AIT.startUpdateLocation){
+    setGpsStatus(false,'위치 확인 중…');
+    try{
+      AIT.startUpdateLocation.getPermission().then(function(st){
+        if(st!=='allowed') return AIT.startUpdateLocation.openPermissionDialog();
+      }).catch(function(){}).then(function(){ beginAIT(AIT); });
+    }catch(e){ beginAIT(AIT); }
+    return;
+  }
+  // 브라우저(테스트) 폴백
+  if(!navigator.geolocation){ fallbackTest('GPS 미지원 · 체험 모드'); return; }
   setGpsStatus(false,'위치 확인 중…');
   try{
     watchId=navigator.geolocation.watchPosition(function(p){
-      if(mode!=='gps') return;
-      gpsOk=true; pos.lat=p.coords.latitude; pos.lng=p.coords.longitude;
-      if(p.coords.heading!=null && !isNaN(p.coords.heading) && p.coords.speed>0.4) gpsHeading=p.coords.heading;
-      var acc=p.coords.accuracy?Math.round(p.coords.accuracy):null;
-      var comp = headingValid ? ' · 나침반' : (gpsHeading!=null ? ' · 이동방향' : '');
-      setGpsStatus(true,'GPS 연결됨'+(acc?' · '+acc+'m':'')+comp);
-      renderMap();
-    },function(){ fallbackTest('위치 권한 없음 · 테스트 모드'); },
+      var hd=(p.coords.heading!=null && !isNaN(p.coords.heading) && p.coords.speed>0.4)?p.coords.heading:null;
+      handleLoc(p.coords.latitude,p.coords.longitude,hd,p.coords.accuracy);
+    },function(){ fallbackTest('위치 권한 없음 · 체험 모드'); },
     {enableHighAccuracy:true,maximumAge:5000,timeout:9000});
-  }catch(e){ fallbackTest('GPS 오류 · 테스트 모드'); }
+  }catch(e){ fallbackTest('GPS 오류 · 체험 모드'); }
+}
+function stopGeo(){
+  if(aitStop){ try{aitStop();}catch(e){} aitStop=null; }
+  if(watchId!=null && navigator.geolocation){ try{navigator.geolocation.clearWatch(watchId);}catch(e){} watchId=null; }
 }
 function fallbackTest(msg){
-  mode='test'; gpsOk=false;
+  mode='test'; gpsOk=false; stopGeo();
   document.getElementById('dpad').classList.add('on');
   document.getElementById('modeToggle').textContent='GPS 켜기';
-  setGpsStatus(false,msg||'테스트 모드'); renderMap();
+  setGpsStatus(false,msg||'체험 모드'); renderMap();
 }
 function toggleMode(){
   if(mode==='gps'){
-    mode='test'; document.getElementById('dpad').classList.add('on');
-    document.getElementById('modeToggle').textContent='GPS 켜기'; setGpsStatus(false,'테스트 모드 · 가상 이동');
+    mode='test'; stopGeo(); document.getElementById('dpad').classList.add('on');
+    document.getElementById('modeToggle').textContent='GPS 켜기'; setGpsStatus(false,'체험 모드 · 가상 이동');
   } else {
     mode='gps'; document.getElementById('dpad').classList.remove('on');
-    document.getElementById('modeToggle').textContent='테스트 이동'; startGeo();
+    document.getElementById('modeToggle').textContent='체험 모드'; startGeo();
   }
   renderMap();
 }
