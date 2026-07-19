@@ -2,7 +2,7 @@
 <!--
 ================================================================
   정리각 (JungNi) — 연락처 정리 도우미
-  버전: VCF v1.0 (2026-07)
+  버전: VCF v1.2 (2026-07)
   브랜드: sans | 플랫폼: Toss 앱인토스(ait) | 단일 HTML, 무의존성
   ─────────────────────────────────────────────
   [원칙] "코앞까지만 데려다준다. 아무것도 건드리지 않는다."
@@ -12,6 +12,14 @@
    - 실제 편집·삭제는 사용자가 폰 연락처 앱에서 직접.
   ─────────────────────────────────────────────
   [변경 로그]
+  VCF v1.2 (2026-07): 공유 로직 gongo(공원갈까) 방식으로 재구성.
+       · 토스/iframe 안: 부모 postMessage(SHARE_FILE)로 네이티브 공유시트 요청
+       · 웹: isSecureContext(https)에서만 navigator.share(files) 시도
+       · 그 외(content://·http): 저장 폴백 + 명확 안내
+  VCF v1.1 (2026-07): content:// 저장 불가 대응.
+       · blob 다운로드 실패/차단(content://·file:) 감지 → data URL 새 탭으로 폴백
+       · 그래도 안 되면 클립보드 복사 안내
+       · 공유 불가 안내 문구를 "크롬(https)으로 열면 됨"으로 명확화
   VCF v1.0 (2026-07): 흰색 계열 + 네이티브 저장 브릿지.
        · 팔레트: 티크 → 차콜(#333D4B)/그레이 — 완전 화이트 톤
        · 토스 WebView 감지 시 saveBase64Data 패턴(SAVE_IMAGE postMessage)으로 저장
@@ -78,7 +86,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>전번 다 지워 VCF v1.0</title>
+<title>전번 다 지워 VCF v1.2</title>
 <style>
   :root{
     --bg:#FFFFFF; --card:#FFFFFF; --card-line:#E9ECEF;
@@ -1177,35 +1185,73 @@ function nativeSave(text, filename, mime){
 /* ================= 파일 저장(다운로드) 공통 ================= */
 function downloadVCF(text, filename, mime){
   if(rnwv){ return nativeSave(text, filename, mime); }   // 토스 안: 네이티브 저장
+  mime = mime || 'text/vcard';
+  // 1) blob + a.download (일반 브라우저)
+  var blobOK = false;
   try{
-    var blob = new Blob([text], { type: mime || 'text/vcard' });
+    var blob = new Blob([text], { type: mime });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
-    a.href = url; a.download = filename; a.style.display = 'none';
+    a.href = url; a.download = filename; a.rel = 'noopener'; a.style.display = 'none';
     document.body.appendChild(a); a.click();
-    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
-    toast('저장했어요! 파일 앱 → 다운로드 폴더에 있어요');
-    return true;
-  }catch(e){ return false; }
+    setTimeout(function(){ try{ document.body.removeChild(a); URL.revokeObjectURL(url); }catch(_){} }, 2000);
+    blobOK = true;
+  }catch(e){ blobOK = false; }
+
+  // content:// 등에서는 blob 다운로드가 조용히 막힘 → 안전한 파일뷰어로 폴백
+  if(!blobOK || location.protocol === 'content:' || location.protocol === 'file:'){
+    return showSaveSheet(text, filename, mime);
+  }
+  toast('저장했어요! 파일 앱 → 다운로드 폴더에 있어요');
+  return true;
+}
+
+// 다운로드가 막히는 환경(content://, 인앱브라우저)용: 파일을 화면에 열어 직접 저장 유도
+function showSaveSheet(text, filename, mime){
+  try{
+    var b = b64(text);
+    var dataUrl = 'data:' + (mime||'text/vcard') + ';charset=utf-8;base64,' + b;
+    var w = window.open(dataUrl, '_blank');
+    if(w){
+      toast('파일이 열렸어요. 우측 상단 메뉴 → 다운로드/공유를 누르세요.');
+      return true;
+    }
+  }catch(e){}
+  // 최후: 복사
+  copyTextTo(text, filename);
+  return true;
+}
+function copyTextTo(text){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(
+      function(){ toast('내용을 복사했어요. 메모 앱에 붙여넣어 .vcf로 저장하세요.'); },
+      function(){ toast('길게 눌러 복사해 주세요.'); });
+  } else { toast('저장이 어려운 환경이에요. 크롬으로 열어 주세요.'); }
 }
 async function shareVCFText(text, filename, title, mime){
-  if(rnwv){ return nativeSave(text, filename, mime); }   // 토스 안: 저장으로 안내
-  // https가 아니면(다운로드로 연 파일 등) 파일 공유가 불가능한 환경
-  if(!window.isSecureContext){
-    toast('여기선 바로 보내기가 안 돼요. 저장 후 카톡 ＋ → 파일로 보내주세요.');
-    return false;
+  mime = mime || 'text/vcard';
+  // 1) 토스 앱 안: 부모 React로 파일 공유 요청 (gongo의 SHARE_TEXT 확장형)
+  if(rnwv || (window.parent && window.parent !== window)){
+    try{
+      var payload = { type:'SHARE_FILE', base64: b64(text), filename: filename, mimeType: mime };
+      if(rnwv) window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+      else window.parent.postMessage(payload, '*');
+      toast('공유 화면을 여는 중…');
+      return true;
+    }catch(e){}
   }
-  // 파일 공유가 확실히 지원될 때만 공유. (텍스트로 격하되면 카톡에 제목만 가는 문제 방지)
-  try{
-    if(navigator.canShare && window.File){
-      var f = new File([text], filename, { type: mime || 'text/vcard' });
+  // 2) 웹 파일 공유 (https·크롬 등 보안 컨텍스트에서만 정상)
+  if(window.isSecureContext && navigator.canShare && window.File){
+    try{
+      var f = new File([text], filename, { type: mime });
       if(navigator.canShare({ files:[f] })){
         await navigator.share({ files:[f], title: filename });
         return true;
       }
-    }
-  }catch(e){ if(e && e.name==='AbortError') return true; }
-  toast('이 브라우저는 파일 공유가 안 돼요. 저장 후 카톡에서 파일로 보내주세요.');
+    }catch(e){ if(e && e.name==='AbortError') return true; }
+  }
+  // 3) 공유 불가 환경(content://, http 등) → 저장으로 폴백
+  toast('바로 보내기가 안 되는 환경이에요. 저장 후 카톡 ＋ → 파일로 보내주세요.');
   return false;
 }
 
