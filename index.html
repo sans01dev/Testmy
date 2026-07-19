@@ -2,7 +2,7 @@
 <!--
 ================================================================
   정리각 (JungNi) — 연락처 정리 도우미
-  버전: VCF v1.2 (2026-07)
+  버전: VCF v1.3 (2026-07)
   브랜드: sans | 플랫폼: Toss 앱인토스(ait) | 단일 HTML, 무의존성
   ─────────────────────────────────────────────
   [원칙] "코앞까지만 데려다준다. 아무것도 건드리지 않는다."
@@ -12,6 +12,10 @@
    - 실제 편집·삭제는 사용자가 폰 연락처 앱에서 직접.
   ─────────────────────────────────────────────
   [변경 로그]
+  VCF v1.3 (2026-07): VCF 공유 격하 수정.
+       · 크롬이 text/vcard 파일 공유를 거부(canShare=false)하던 문제 →
+         파일명(.vcf) 유지하고 MIME만 text/plain→octet-stream→무지정 순으로 재시도
+       · CSV는 원래 되던 대로 유지
   VCF v1.2 (2026-07): 공유 로직 gongo(공원갈까) 방식으로 재구성.
        · 토스/iframe 안: 부모 postMessage(SHARE_FILE)로 네이티브 공유시트 요청
        · 웹: isSecureContext(https)에서만 navigator.share(files) 시도
@@ -86,7 +90,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>전번 다 지워 VCF v1.2</title>
+<title>전번 다 지워 VCF v1.3</title>
 <style>
   :root{
     --bg:#FFFFFF; --card:#FFFFFF; --card-line:#E9ECEF;
@@ -1241,14 +1245,19 @@ async function shareVCFText(text, filename, title, mime){
     }catch(e){}
   }
   // 2) 웹 파일 공유 (https·크롬 등 보안 컨텍스트에서만 정상)
+  //    크롬은 text/vcard 파일 공유를 거부(canShare=false)하므로,
+  //    파일명(.vcf)은 그대로 두고 MIME만 공유 허용값으로 바꿔 시도.
   if(window.isSecureContext && navigator.canShare && window.File){
-    try{
-      var f = new File([text], filename, { type: mime });
-      if(navigator.canShare({ files:[f] })){
-        await navigator.share({ files:[f], title: filename });
-        return true;
-      }
-    }catch(e){ if(e && e.name==='AbortError') return true; }
+    var shareMimes = [mime, 'text/plain', 'application/octet-stream', ''];
+    for(var mi=0; mi<shareMimes.length; mi++){
+      try{
+        var f = new File([text], filename, shareMimes[mi] ? { type: shareMimes[mi] } : undefined);
+        if(navigator.canShare({ files:[f] })){
+          await navigator.share({ files:[f], title: filename });
+          return true;
+        }
+      }catch(e){ if(e && e.name==='AbortError') return true; }
+    }
   }
   // 3) 공유 불가 환경(content://, http 등) → 저장으로 폴백
   toast('바로 보내기가 안 되는 환경이에요. 저장 후 카톡 ＋ → 파일로 보내주세요.');
