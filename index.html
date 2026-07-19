@@ -1,784 +1,1355 @@
 <!DOCTYPE html>
+<!--
+================================================================
+  정리각 (JungNi) — 연락처 정리 도우미
+  버전: VCF v1.0 (2026-07)
+  브랜드: sans | 플랫폼: Toss 앱인토스(ait) | 단일 HTML, 무의존성
+  ─────────────────────────────────────────────
+  [원칙] "코앞까지만 데려다준다. 아무것도 건드리지 않는다."
+   - 연락처는 읽기(read)만. 수정·삭제·저장 일절 안 함.
+   - 정리 대상(이름없음/중복)을 찾아 보여주기만.
+   - 전화 걸기는 tel: (폰 전화앱으로 넘김) — 누군지 확인용.
+   - 실제 편집·삭제는 사용자가 폰 연락처 앱에서 직접.
+  ─────────────────────────────────────────────
+  [변경 로그]
+  VCF v1.0 (2026-07): 흰색 계열 + 네이티브 저장 브릿지.
+       · 팔레트: 티크 → 차콜(#333D4B)/그레이 — 완전 화이트 톤
+       · 토스 WebView 감지 시 saveBase64Data 패턴(SAVE_IMAGE postMessage)으로 저장
+       · content://(비보안) 환경에서 공유 불가 안내 명확화
+       · https로 열면 navigator.share로 카톡 파일 직접 전송 가능
+  VCF v0.9 (2026-07): 한글 깨짐 수정 (EUC-KR 감지 강화).
+       · UTF-8/EUC-KR 양쪽 디코드 → 완성형 한글 비율 점수로 자동 채택
+       · 기존 "치환문자 3개 초과" 휴리스틱 → 문자단위 점수제로 교체
+  VCF v0.8 (2026-07): 실제 삼성 메뉴 경로로 안내 교체 (OMATE 시니어 기사 기준).
+       · 내보내기: 메뉴(≡)→연락처 관리→연락처 가져오기 또는 내보내기→내보내기→내장 메모리 (4단계)
+       · 복원: 같은 경로→가져오기→내장 메모리→Download 폴더 파일 선택→저장 위치→가져오기 (4단계)
+       · 저장 파일 위치 명시: 내 파일→내장 메모리→Download
+  VCF v0.7 (2026-07): 공유 격하 버그 대응.
+       · 파일 공유 미지원 브라우저에서 제목 텍스트만 전송되던 문제 →
+         파일 공유 확실할 때만 share, 아니면 안내 토스트 + 저장 폴백
+       · share title을 파일명으로 (일부 앱이 title을 본문으로 보냄)
+       · 카톡 전송 안내 문구: ＋ → 파일 → 다운로드 선택
+  VCF v0.6 (2026-07): 흰색 리디자인 + CSV + 전체 SVG 아이콘.
+       · 팔레트: 깔끔한 화이트(#FFFFFF) + 티크 프라이머리(#2E7D8A)
+       · 저장 형식 선택: VCF(폰용) / CSV(구글 주소록 가져오기용, BOM 포함)
+       · 이모지 전면 제거 → 전부 인라인 SVG (카테고리·전화·저장·공유·완료·진행)
+  VCF v0.5 (2026-07): 파일명 지정.
+       · 저장/공유 전 파일 이름 입력칸 (기본: 연락처.vcf / 정리본: 연락처_정리.vcf)
+       · 금지문자 제거, .vcf 자동 부착, 비우면 기본값
+  VCF v0.4 (2026-07): 저장/공유 분리.
+       · 백업·정리 파일 모두 [내 폰에 저장](다운로드 폴더) 버튼 우선
+       · [카톡·메일로 보내기](공유시트) 별도 버튼, 실패 시 저장 폴백
+       · 저장 후 파일 위치 안내 토스트
+  VCF v0.3 (2026-07): 번호별 삭제.
+       · '전체 연락처' 카테고리 추가 — 모든 번호를 보고 행마다 [삭제]
+       · 이름·번호 검색(부분일치, 번호는 숫자만 비교), 100개씩 더보기
+       · 표현 통일: 담기 → 삭제 / 담김 → 삭제 취소
+  VCF v0.2 (2026-07): [스토어 검증 패턴 반영 + 크림 리디자인]
+       · 팔레트: 연한 크림(#FAF5EA) + 테라코타(#B4622D) + 티크 포인트
+       · 요약 리스트(카테고리+개수) 4종: 이름없음/중복/번호없음/비슷한이름
+       · 중복: 정보 많은(이름 긴) 쪽 자동 '남김' + "한 번에 담기" 원탭
+       · 비슷한 이름: 공백·숫자·기호 무시 동일 & 번호 다른 것만 (보수적)
+       · 번호없음: 이메일·회사 단서 표시 + 모두 담기
+       · 지울 목록(담기) → 개수 박힌 확정 버튼 → 진행 애니메이션
+       · 정리된 VCF(담은 것 제외, EMAIL/ORG 보존) 생성·공유
+       · 파서: EMAIL/ORG 수집, 번호 없는 연락처 보존
+  VCF v0.1 (2026-07): [방향 전환] SDK(fetchContacts) 대신 VCF 파일 방식.
+       · 사용자가 폰 연락처 앱에서 "내보내기"한 VCF 파일을 업로드 → 파싱
+       · vCard 2.1/3.0 + QUOTED-PRINTABLE(UTF-8) 한글 디코딩 지원 (갤럭시 대응)
+       · 단일 HTML — 빌드/SDK/권한 불필요, 브라우저에서 바로 동작
+       · 내보내기 3스텝 안내 화면 추가 (원본은 절대 건드리지 않음)
+       · 정리 카드에서 "지울 번호 담기" → 결과 화면에서 지울 목록 확인
+       · "정리된 백업 VCF"(지울 번호 뺀 파일) 생성 = 새 폰 이사용
+  v0.3 (2026-07): [실기기 대응] 토스 예제(apps-in-toss) 대조 후 브릿지 교체.
+       · 연락처: 임의 __aitFetchContacts → GET_CONTACTS postMessage 브릿지
+         (reqId 응답매칭+타임아웃). App.tsx가 SDK fetchContacts로 응답.
+         주입함수 window.__aitFetchContacts 있으면 그것도 지원(하위호환).
+       · 백업: 없는 SHARE_FILE → 가계부와 동일한 SAVE_IMAGE(saveBase64Data)
+         저장 + 텍스트복사 + PC blob 폴백, SAVE_RESULT 수신 토스트.
+       · 권한거부/타임아웃 시 안내+재시도 버튼(OPEN_CONTACTS_PERMISSION).
+       · 전화확인 시 checkedCount 이중증가 버그 수정.
+  v0.2 (2026-07): 백업(VCF 생성+일반공유)+복원 안내(3스텝) 탭 추가.
+       하단 탭바(정리/백업/복원). "우린 길만 안내, 파일 보관 안 함".
+  v0.1 (2026-07): 최초 — 인트로/정책고지/권한요청/연락처읽기/
+       이름없음·중복 분류/틱톡식 확인카드/전화걸기(tel)/요약
+================================================================
+-->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>동네몬스터 v0.7</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>전번 다 지워 VCF v1.0</title>
 <style>
   :root{
-    --p:#6D4AFF; --p-d:#5A38E0; --p-soft:#EDE9FF;
-    --bg:#F5F5F8; --card:#FFFFFF; --line:#E6E6EE;
-    --text:#2A2A33; --text2:#6B6B78; --text3:#9C9CAC;
-    --r-sm:10px; --r-md:14px; --r-lg:20px;
-    --map:#DDE7DC; --map-line:#CBD8CA;
+    --bg:#FFFFFF; --card:#FFFFFF; --card-line:#E9ECEF;
+    --ink:#191F28; --ink-soft:#4E5968; --text-dim:#6B7684; --text-faint:#8B95A1;
+    --primary:#333D4B;        /* 차분한 청록 — 정리/개운함 */
+    --primary-soft:#F2F4F6;
+    --accent:#4E5968;         /* 전화(확인) */
+    --warn:#E0442E; --warn-soft:#FCEAE6;
+    --shadow:0 2px 12px rgba(25,31,40,.06);
   }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{margin:0;padding:0;}
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; padding:0; }
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
-    background:var(--bg); color:var(--text); font-size:15px; line-height:1.5;
-    -webkit-font-smoothing:antialiased; max-width:480px; margin:0 auto; position:relative; min-height:100vh;
+    background:var(--bg); color:var(--ink);
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+    line-height:1.5;
   }
-  button{font-family:inherit; cursor:pointer; border:none; background:none;}
+  .app{ max-width:520px; margin:0 auto; min-height:100vh; position:relative; }
 
-  #intro{position:fixed; top:0; left:0; right:0; bottom:0; z-index:50;
-    background:linear-gradient(160deg,#6D4AFF 0%,#8B6FF5 60%,#A995F7 100%);
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    color:#fff; text-align:center; padding:0 32px; max-width:480px; margin:0 auto;}
-  #intro .logo{width:112px; height:112px; margin-bottom:26px; filter:drop-shadow(0 8px 18px rgba(0,0,0,.22));}
-  #intro h1{font-size:27px; font-weight:800; letter-spacing:-.5px; margin:0 0 18px;}
-  #intro p{font-size:16px; font-weight:600; line-height:1.7; opacity:.94; margin:0 0 40px;}
-  #intro .start{background:#fff; color:var(--p-d); font-size:17px; font-weight:800;
-    padding:15px 54px; border-radius:999px; box-shadow:0 6px 16px rgba(0,0,0,.18);}
-  #intro .start:active{transform:translateY(1px);}
+  /* ===== 화면 전환 ===== */
+  .screen{ display:none; padding:0 20px 40px; }
+  .screen.on{ display:block; }
 
-  header{position:sticky; top:0; z-index:20; background:var(--card); border-bottom:1px solid var(--line);
-    display:flex; align-items:center; gap:10px; padding:11px 16px;}
-  header .hicon{width:38px; height:38px; flex:0 0 auto;}
-  header .htxt b{display:block; font-size:16.5px; font-weight:800; letter-spacing:-.3px; line-height:1.2;}
-  header .htxt span{display:block; font-size:11.5px; font-weight:600; color:var(--text3); margin-top:1px;}
-  header .catch-count{margin-left:auto; background:var(--p-soft); color:var(--p-d);
-    font-size:12.5px; font-weight:800; padding:6px 12px; border-radius:999px;}
+  /* ===== 인트로 ===== */
+  #s-intro{ display:none; min-height:100vh; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px 32px; }
+  #s-intro.on{ display:flex; }
+  .intro-badge{ width:96px; height:96px; margin-bottom:28px; }
+  .intro-title{ font-size:27px; font-weight:800; letter-spacing:-.5px; color:var(--ink); margin:0 0 14px; }
+  .intro-sub{ font-size:15px; font-weight:600; color:var(--text-dim); line-height:1.6; margin:0 0 8px; }
+  .intro-lines{ font-size:14px; color:var(--ink-soft); line-height:1.9; margin:22px 0 0; font-weight:600; }
+  .intro-lines b{ color:var(--primary); font-weight:800; }
+  .intro-cta{ margin-top:40px; width:100%; max-width:340px; padding:17px; border-radius:16px; border:none;
+    background:var(--primary); color:#fff; font-size:16px; font-weight:800; font-family:inherit; cursor:pointer; box-shadow:0 6px 18px rgba(46,125,138,.28); }
+  .intro-cta:active{ transform:scale(.98); }
+  .intro-safe{ margin-top:18px; font-size:12px; color:var(--text-faint); line-height:1.6; }
+  .intro-safe b{ color:var(--primary); }
 
-  .tabs{position:sticky; top:61px; z-index:19; display:flex; background:var(--card); border-bottom:1px solid var(--line);}
-  .tabs button{flex:1; padding:12px 0; font-size:14.5px; font-weight:700; color:var(--text3); border-bottom:2.5px solid transparent;}
-  .tabs button.on{color:var(--p); border-bottom-color:var(--p);}
-  .page{display:none; padding:16px;}
-  .page.on{display:block;}
+  /* ===== 상단 헤더 ===== */
+  .top{ position:sticky; top:0; z-index:10; background:var(--bg); padding:16px 20px 12px; margin:0 -20px 4px; }
+  .top-row{ display:flex; align-items:center; gap:10px; }
+  .top-badge{ width:34px; height:34px; flex:0 0 auto; }
+  .top-title{ font-size:18px; font-weight:800; letter-spacing:-.3px; }
+  .top-sub{ font-size:12px; color:var(--text-dim); font-weight:600; margin-top:1px; }
 
-  .map-wrap{position:relative; width:100%; aspect-ratio:1/1; border-radius:var(--r-lg);
-    overflow:hidden; background:var(--map); border:1px solid var(--map-line);
-    box-shadow:inset 0 0 0 1px rgba(255,255,255,.4);}
-  .map-grid{position:absolute; top:0; left:0; right:0; bottom:0;
-    background-image:linear-gradient(var(--map-line) 1px,transparent 1px),linear-gradient(90deg,var(--map-line) 1px,transparent 1px);
-    background-size:34px 34px; opacity:.55;}
-  .range-ring{position:absolute; left:50%; top:50%; border-radius:50%; border:2px dashed rgba(109,74,255,.45);
-    transform:translate(-50%,-50%); animation:pulse 2.4s ease-in-out infinite;}
-  @keyframes pulse{0%,100%{opacity:.35;}50%{opacity:.75;}}
-  .me{position:absolute; left:50%; top:50%; width:30px; height:30px; transform:translate(-50%,-50%); z-index:6;}
-  .me .arrow{width:30px; height:30px;}
-  .me .halo{position:absolute; left:50%; top:50%; width:44px; height:44px; border-radius:50%;
-    background:rgba(109,74,255,.18); transform:translate(-50%,-50%); animation:halo 2s ease-out infinite;}
-  @keyframes halo{0%{transform:translate(-50%,-50%) scale(.5);opacity:.7;}100%{transform:translate(-50%,-50%) scale(1.4);opacity:0;}}
-  .facing{position:absolute; left:50%; transform:translateX(-50%); z-index:6; font-size:11.5px; font-weight:800;
-    padding:3px 12px; border-radius:999px; color:#fff; background:rgba(42,42,51,.55);}
-  .facing.front{top:9px;} .facing.back{bottom:9px; background:rgba(42,42,51,.35);}
-  .compass{position:absolute; left:10px; top:10px; width:40px; height:40px; border-radius:50%; z-index:6;
-    background:rgba(255,255,255,.9); box-shadow:0 1px 4px rgba(0,0,0,.2); display:flex; align-items:center; justify-content:center;}
-  .compass .needle{width:100%; height:100%; transition:transform .15s linear;}
-  .mon-marker{position:absolute; width:52px; height:52px; transform:translate(-50%,-50%); z-index:4; cursor:pointer;}
-  .mon-marker svg{width:100%; height:100%; filter:drop-shadow(0 3px 5px rgba(0,0,0,.28));}
-  .mon-marker.inrange{animation:bob 1s ease-in-out infinite;}
-  @keyframes bob{0%,100%{transform:translate(-50%,-50%);}50%{transform:translate(-50%,-58%);}}
-  .mon-marker .qmark{position:absolute; top:-2px; right:-2px; width:15px; height:15px; background:#fff;
-    color:var(--text2); border-radius:50%; font-size:10px; font-weight:800; display:flex; align-items:center;
-    justify-content:center; box-shadow:0 1px 3px rgba(0,0,0,.25);}
-  .mon-marker .rare-dot{position:absolute; top:-3px; left:-3px; width:12px; height:12px; border-radius:50%;
-    border:2px solid #fff; box-shadow:0 1px 2px rgba(0,0,0,.3);}
+  /* ===== 정책 고지 배너 ===== */
+  .policy{ background:var(--primary-soft); border:1.5px solid #E5EBF0; border-radius:16px; padding:15px 16px; margin:8px 0 18px; }
+  .policy-title{ font-size:13px; font-weight:800; color:var(--primary); margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+  .policy-list{ margin:0; padding:0; list-style:none; }
+  .policy-list li{ font-size:12.5px; color:var(--ink-soft); font-weight:600; line-height:1.6; padding-left:18px; position:relative; margin-bottom:4px; }
+  .policy-list li:before{ content:''; position:absolute; left:0; top:.32em; width:.85em; height:.85em; background:var(--primary); -webkit-mask:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M4 12.5l5 5L20 6.5%22/></svg>') center/contain no-repeat; mask:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M4 12.5l5 5L20 6.5%22/></svg>') center/contain no-repeat; }
+  .policy-list li:last-child{ margin-bottom:0; }
 
-  .status-row{display:flex; align-items:center; gap:8px; margin:12px 2px 4px;}
-  .status-row .gps{font-size:12.5px; font-weight:700; color:var(--text2); display:flex; align-items:center; gap:5px;}
-  .status-row .gps .led{width:8px; height:8px; border-radius:50%; background:#22C55E;}
-  .status-row .gps .led.off{background:#DC2626;}
-  .mode-toggle{margin-left:auto; font-size:12px; font-weight:700; color:var(--p-d);
-    background:var(--p-soft); padding:6px 11px; border-radius:999px;}
-  .dpad{display:none; margin:14px auto 2px; width:260px;}
-  .dpad.on{display:block;}
-  .dpad .row{display:flex; justify-content:center; gap:8px; margin:6px 0;}
-  .dpad button{min-width:78px; height:44px; padding:0 8px; border-radius:var(--r-sm); background:var(--card); border:1px solid var(--line);
-    font-size:13px; font-weight:800; color:var(--p-d); box-shadow:0 1px 3px rgba(0,0,0,.06); white-space:nowrap;}
-  .dpad button:active{background:var(--p-soft);}
-  .dpad .hint{text-align:center; font-size:11.5px; color:var(--text3); font-weight:600; margin-top:4px;}
+  /* ===== 스캔/분류 요약 카드 ===== */
+  .sum{ display:flex; gap:12px; margin-bottom:20px; }
+  .sum-card{ flex:1; background:var(--card); border:1.5px solid var(--card-line); border-radius:18px; padding:18px 14px; text-align:center; box-shadow:var(--shadow); cursor:pointer; transition:all .12s; }
+  .sum-card:active{ transform:scale(.97); }
+  .sum-card.on{ border-color:var(--primary); background:var(--primary-soft); }
+  .sum-num{ font-size:28px; font-weight:800; color:var(--ink); letter-spacing:-1px; }
+  .sum-card.on .sum-num{ color:var(--primary); }
+  .sum-label{ font-size:12.5px; color:var(--text-dim); font-weight:700; margin-top:3px; }
 
-  .catch-card{margin-top:14px; background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg);
-    padding:14px; display:flex; align-items:center; gap:13px; box-shadow:0 3px 12px rgba(0,0,0,.06);}
-  .catch-card .cc-icon{width:66px; height:66px; flex:0 0 auto;}
-  .catch-card .cc-info{flex:1; min-width:0;}
-  .catch-card .cc-info b{font-size:16px; font-weight:800;}
-  .catch-card .cc-info .dist{font-size:13px; font-weight:700; color:var(--text2); margin-top:2px;}
-  .catch-card .cc-info .dist.near{color:#16A34A;}
-  .catch-card .cc-btn{background:var(--p); color:#fff; font-size:15.5px; font-weight:800; padding:13px 22px;
-    border-radius:var(--r-md); flex:0 0 auto;}
-  .catch-card .cc-btn:active{background:var(--p-d);}
-  .empty-hint{margin-top:14px; text-align:center; font-size:13.5px; font-weight:600; color:var(--text3);
-    padding:18px 10px; background:var(--card); border-radius:var(--r-lg); border:1px dashed var(--line);}
+  .section-label{ font-size:13px; font-weight:800; color:var(--ink-soft); margin:0 0 12px; }
 
-  .dex-head{display:flex; align-items:baseline; gap:8px; margin:2px 2px 14px;}
-  .dex-head b{font-size:17px; font-weight:800;}
-  .dex-head span{font-size:13px; font-weight:700; color:var(--p-d);}
-  .dex-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:11px;}
-  .dex-cell{background:var(--card); border:1px solid var(--line); border-radius:var(--r-md); padding:12px 6px 10px; text-align:center; position:relative;}
-  .dex-cell .num{font-size:10.5px; font-weight:800; color:var(--text3);}
-  .dex-cell .art{width:66px; height:66px; margin:3px auto 5px;}
-  .dex-cell.locked .art{filter:grayscale(1) brightness(.62) opacity(.5);}
-  .dex-cell .nm{font-size:13px; font-weight:700; letter-spacing:-.2px;}
-  .dex-cell.locked .nm{color:var(--text3);}
-  .dex-cell .cnt{font-size:10.5px; font-weight:700; color:var(--p-d); margin-top:2px; min-height:13px;}
-  .lvchip{display:inline-block; background:var(--p); color:#fff; font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px;}
-  .lvblock{margin:2px 0 14px;}
-  .lvbar{height:9px; background:var(--line); border-radius:999px; overflow:hidden;}
-  .lvbar > i{display:block; height:100%; background:var(--p); border-radius:999px; transition:width .4s ease;}
-  .lvinfo{font-size:12.5px; font-weight:700; color:var(--text2); margin-top:7px; text-align:center;}
-  .dex-cell .rb{position:absolute; top:7px; right:7px; width:9px; height:9px; border-radius:50%;}
+  /* ===== 정리 카드(틱톡식) ===== */
+  .deck{ position:relative; }
+  .empty-note{ text-align:center; padding:50px 20px; color:var(--text-dim); font-size:14px; font-weight:600; line-height:1.7; }
+  .empty-note .em{ font-size:40px; display:block; margin-bottom:14px; }
+  .rcard{ background:var(--card); border:1.5px solid var(--card-line); border-radius:22px; padding:28px 24px; box-shadow:var(--shadow); text-align:center; }
+  .rcard-tag{ display:inline-block; font-size:11.5px; font-weight:800; padding:5px 12px; border-radius:11px; margin-bottom:20px; }
+  .rcard-tag.noname{ background:var(--warn-soft); color:var(--warn); }
+  .rcard-tag.dup{ background:#FEF3E2; color:#C77A20; }
+  .rcard-phone{ font-size:30px; font-weight:800; letter-spacing:-.5px; color:var(--ink); margin-bottom:8px; word-break:break-all; }
+  .rcard-name{ font-size:15px; font-weight:600; color:var(--text-dim); margin-bottom:24px; }
+  .rcard-name.none{ color:var(--text-faint); font-style:normal; }
+  .rcard-actions{ display:flex; gap:10px; }
+  .rc-btn{ flex:1; padding:15px; border-radius:15px; border:1.5px solid var(--card-line); background:#fff; font-size:15px; font-weight:800; font-family:inherit; cursor:pointer; transition:all .12s; display:flex; align-items:center; justify-content:center; gap:7px; }
+  .rc-btn:active{ transform:scale(.96); }
+  .rc-call{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .rc-skip{ color:var(--ink-soft); }
+  .rc-btn svg{ width:18px; height:18px; }
 
-  .tbadge{display:inline-block; font-size:11px; font-weight:800; color:#fff; padding:3px 9px; border-radius:999px;}
+  .progress{ text-align:center; font-size:13px; color:var(--text-dim); font-weight:700; margin-top:18px; }
+  .progress b{ color:var(--primary); }
 
-  .sheet-bg{position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.4); z-index:40; display:none; max-width:480px; margin:0 auto;}
-  .sheet-bg.on{display:block;}
-  .sheet{position:fixed; left:0; right:0; bottom:0; z-index:41; background:var(--card); border-radius:24px 24px 0 0;
-    max-height:80vh; overflow-y:auto; padding:8px 20px 30px; max-width:480px; margin:0 auto;
-    transform:translateY(100%); transition:transform .28s ease;}
-  .sheet.on{transform:translateY(0);}
-  .sheet .grab{width:40px; height:5px; border-radius:3px; background:var(--line); margin:8px auto 14px;}
-  .sheet .big-art{width:132px; height:132px; margin:2px auto 8px; display:block;}
-  .sheet h2{text-align:center; font-size:22px; font-weight:800; margin:0 0 6px;}
-  .sheet .badges{text-align:center; margin-bottom:16px; display:flex; gap:6px; justify-content:center;}
-  .sheet .flavor{background:var(--bg); border-radius:var(--r-md); padding:14px 15px; font-size:14.5px; font-weight:600; line-height:1.55; color:var(--text);}
-  .sheet .meta{margin-top:12px; font-size:13px; font-weight:600; color:var(--text2); display:flex; justify-content:space-between;}
-  .sheet .locked-msg{text-align:center; color:var(--text3); font-size:14px; font-weight:600; padding:6px 0 4px;}
+  /* 하단 안내 */
+  .foot-note{ margin-top:28px; padding:16px; background:#fff; border:1.5px solid var(--card-line); border-radius:16px; font-size:12.5px; color:var(--text-dim); font-weight:600; line-height:1.65; }
+  .foot-note b{ color:var(--ink-soft); }
 
-  /* ===== 잡기 연출 ===== */
-  #catchFx{position:fixed; top:0; left:0; right:0; bottom:0; z-index:70; max-width:480px; margin:0 auto;
-    display:none; align-items:center; justify-content:center; overflow:hidden;
-    background:radial-gradient(circle at 50% 42%, rgba(109,74,255,.55), rgba(20,16,40,.92));}
-  #catchFx.on{display:flex;}
-  #fxMon{position:absolute; top:38%; left:50%; width:150px; height:150px; transform:translate(-50%,-50%) scale(0);}
-  #fxMon.in{animation:fxIn .45s cubic-bezier(.2,1.4,.4,1) forwards;}
-  #fxMon.shake{animation:fxShake .3s ease-in-out 2;}
-  #fxMon.gone{transition:transform .4s cubic-bezier(.5,-0.4,.6,.4),opacity .4s ease; transform:translate(-50%,-50%) scale(0) rotate(180deg); opacity:0;}
-  @keyframes fxIn{0%{transform:translate(-50%,-50%) scale(0);}100%{transform:translate(-50%,-50%) scale(1);}}
-  @keyframes fxShake{0%,100%{transform:translate(-50%,-50%);}25%{transform:translate(-56%,-50%) rotate(-8deg);}75%{transform:translate(-44%,-50%) rotate(8deg);}}
-  #fxOrb{position:absolute; top:90%; left:50%; width:56px; height:56px; transform:translate(-50%,-50%) scale(.6); opacity:0;}
-  #fxOrb .core{width:100%; height:100%; border-radius:50%;
-    background:radial-gradient(circle at 35% 30%, #fff, var(--p) 70%, var(--p-d));
-    box-shadow:0 0 22px rgba(109,74,255,.9), inset 0 -6px 10px rgba(0,0,0,.25);}
-  #fxOrb .spark{position:absolute; top:22%; left:26%; width:16px; height:16px; border-radius:50%; background:rgba(255,255,255,.85); filter:blur(1px);}
-  #fxOrb.fly{transition:top .4s cubic-bezier(.5,0,.6,1),transform .4s ease,opacity .1s; top:38%; transform:translate(-50%,-50%) scale(1); opacity:1;}
-  #fxOrb.hide{opacity:0;}
-  #fxFlash{position:absolute; top:38%; left:50%; width:10px; height:10px; border-radius:50%; transform:translate(-50%,-50%);
-    background:#fff; opacity:0;}
-  #fxFlash.go{animation:fxFlash .5s ease-out forwards;}
-  @keyframes fxFlash{0%{opacity:.9; width:10px; height:10px;}100%{opacity:0; width:260px; height:260px;}}
-  .fxpar{position:absolute; top:38%; left:50%; width:9px; height:9px; border-radius:50%; opacity:0;}
-  .mon-marker.unknown svg{filter:brightness(0) opacity(.5);}
-  .catch-card .cc-icon.unknown svg{filter:brightness(0) opacity(.5);}
-  #fxResult{position:absolute; top:0; left:0; right:0; bottom:0; display:none; align-items:center; justify-content:center; padding:0 24px;}
-  #fxResult.on{display:flex;}
-  .fxcard{background:#fff; border-radius:22px; padding:20px 22px 16px; width:266px; max-width:82%; text-align:center; box-shadow:0 16px 40px rgba(0,0,0,.32); animation:cardPop .42s cubic-bezier(.2,1.4,.4,1) both;}
-  @keyframes cardPop{0%{transform:scale(.6); opacity:0;}100%{transform:scale(1); opacity:1;}}
-  .fxcard .newbadge{display:inline-block; background:#FFC93C; color:#5A3B00; font-size:12px; font-weight:900; padding:4px 12px; border-radius:999px; margin-bottom:8px; letter-spacing:.4px;}
-  .fxcard .cart{width:100px; height:100px; margin:2px auto 4px;}
-  .fxcard h3{font-size:21px; font-weight:900; margin:0 0 9px; color:#2A2A33;}
-  .fxcard .cbadges{display:flex; gap:6px; justify-content:center; margin-bottom:15px;}
-  .fxcard .cbtn{width:100%; background:var(--p); color:#fff; font-size:15px; font-weight:800; padding:12px 0; border-radius:14px;}
-  .fxcard .cbtn:active{background:var(--p-d);}
+  /* 큰 버튼 */
+  .big-btn{ width:100%; padding:16px; border-radius:16px; border:none; background:var(--primary); color:#fff; font-size:16px; font-weight:800; font-family:inherit; cursor:pointer; margin-top:8px; }
+  .big-btn:active{ transform:scale(.99); }
+  .big-btn.ghost{ background:#fff; color:var(--primary); border:1.5px solid #E5EBF0; }
 
-  #toast{position:fixed; left:50%; bottom:32px; transform:translateX(-50%) translateY(20px); background:#2A2A33; color:#fff;
-    font-size:14px; font-weight:700; padding:12px 22px; border-radius:999px; z-index:80; opacity:0; pointer-events:none;
-    transition:all .3s ease; box-shadow:0 6px 18px rgba(0,0,0,.3); white-space:nowrap;}
-  #toast.on{opacity:1; transform:translateX(-50%) translateY(0);}
+  /* 로딩 */
+  .loading{ text-align:center; padding:60px 20px; color:var(--text-dim); font-size:14px; font-weight:600; }
+  .spinner{ width:34px; height:34px; border:3px solid var(--card-line); border-top-color:var(--primary); border-radius:50%; margin:0 auto 16px; animation:spin .8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* 토스트 */
+  .toast{ position:fixed; left:50%; bottom:40px; transform:translateX(-50%) translateY(20px); background:rgba(31,41,55,.95); color:#fff; padding:12px 20px; border-radius:12px; font-size:13.5px; font-weight:700; opacity:0; pointer-events:none; transition:all .25s; z-index:100; white-space:nowrap; }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* 완료 화면 */
+  #s-done{ text-align:center; padding-top:40px; }
+  .done-em{ font-size:56px; margin-bottom:20px; }
+  .done-title{ font-size:23px; font-weight:800; margin-bottom:10px; }
+  .done-desc{ font-size:14.5px; color:var(--text-dim); font-weight:600; line-height:1.7; margin-bottom:8px; }
+  .done-stat{ background:var(--primary-soft); border-radius:16px; padding:20px; margin:24px 0; }
+  .done-stat-num{ font-size:34px; font-weight:800; color:var(--primary); }
+  .done-stat-label{ font-size:13px; color:var(--ink-soft); font-weight:700; margin-top:4px; }
+
+  /* 백업 */
+  .backup-hero{ text-align:center; padding:28px 0 20px; }
+  .backup-em{ font-size:52px; margin-bottom:12px; }
+  .backup-count{ font-size:42px; font-weight:800; color:var(--primary); letter-spacing:-1.5px; }
+  .backup-count-label{ font-size:14px; color:var(--text-dim); font-weight:700; margin-top:-2px; }
+  .backup-tip{ text-align:center; font-size:13px; color:var(--text-dim); font-weight:600; margin:14px 0 4px; line-height:1.5; }
+  .backup-tip b{ color:var(--primary); }
+
+  /* 복원 스텝 */
+  .steps{ margin:18px 0 4px; }
+  .step{ display:flex; gap:14px; padding:16px; background:var(--card); border:1.5px solid var(--card-line); border-radius:16px; margin-bottom:10px; box-shadow:var(--shadow); }
+  .step-num{ flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:var(--primary); color:#fff; font-size:15px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  .step-title{ font-size:14.5px; font-weight:800; color:var(--ink); margin-bottom:4px; }
+  .step-desc{ font-size:13px; color:var(--text-dim); font-weight:600; line-height:1.6; }
+  .step-desc b{ color:var(--ink-soft); }
+
+  /* 하단 탭바 */
+  .tabbar{ position:sticky; bottom:0; left:0; right:0; display:none; background:#fff; border-top:1.5px solid var(--card-line); padding:8px 0 max(8px, env(safe-area-inset-bottom)); margin:20px -20px 0; }
+  .tabbar.on{ display:flex; }
+  .tab{ flex:1; background:none; border:none; font-family:inherit; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--text-faint); padding:6px 0; }
+  .tab svg{ width:24px; height:24px; }
+  .tab span{ font-size:11px; font-weight:700; }
+  .tab.on{ color:var(--primary); }
+
+/* ===== v0.2: 카테고리 리스트 UI ===== */
+.sum-list{display:flex;flex-direction:column;gap:10px;margin:14px 0 8px}
+.sum-row{display:flex;align-items:center;gap:12px;background:var(--card);border:1.5px solid var(--card-line);border-radius:16px;padding:16px 16px;box-shadow:var(--shadow);cursor:pointer}
+.sum-row:active{transform:scale(.99)}
+.sum-ico{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--primary-soft);flex:none}
+.sum-txt{flex:1;min-width:0}
+.sum-t{font-size:16px;font-weight:800;color:var(--ink)}
+.sum-d{font-size:13px;font-weight:600;color:var(--text-dim);margin-top:2px}
+.sum-n{font-size:22px;font-weight:900;color:var(--primary);flex:none}
+.sum-n.zero{color:var(--text-faint)}
+.sum-chev{color:var(--text-faint);flex:none;font-size:18px}
+/* 카테고리 상세 */
+.cat-head{display:flex;align-items:center;gap:10px;margin:4px 0 12px}
+.cat-back{width:40px;height:40px;border-radius:12px;border:1.5px solid var(--card-line);background:var(--card);font-size:18px;font-weight:800;color:var(--ink);cursor:pointer}
+.cat-title{font-size:18px;font-weight:900;color:var(--ink)}
+.cat-sub{font-size:13px;font-weight:600;color:var(--text-dim)}
+.cat-tools{margin:0 0 12px}
+.row-item{display:flex;align-items:center;gap:10px;background:var(--card);border:1.5px solid var(--card-line);border-radius:14px;padding:12px 12px;margin-bottom:9px;box-shadow:var(--shadow)}
+.row-item.marked{background:var(--warn-soft);border-color:#F3CFC6}
+.row-main{flex:1;min-width:0}
+.row-name{font-size:15.5px;font-weight:800;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-name .noname{color:var(--text-faint);font-style:italic}
+.row-sub{font-size:13.5px;font-weight:700;color:var(--ink-soft);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-hint{font-size:12px;font-weight:600;color:var(--text-dim);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.keep-badge{font-size:11.5px;font-weight:800;color:var(--accent);background:#EEF1F4;border-radius:8px;padding:3px 8px;flex:none}
+.btn-call{width:42px;height:42px;border-radius:12px;border:1.5px solid var(--card-line);background:var(--card);font-size:17px;flex:none;display:flex;align-items:center;justify-content:center;text-decoration:none}
+.btn-mark{min-width:58px;height:42px;border-radius:12px;border:1.5px solid var(--card-line);background:var(--card);font-size:13.5px;font-weight:800;color:var(--ink-soft);flex:none;cursor:pointer;padding:0 10px}
+.row-item.marked .btn-mark{background:var(--warn);border-color:var(--warn);color:#fff}
+.grp{background:var(--card);border:1.5px solid var(--card-line);border-radius:16px;padding:12px;margin-bottom:12px;box-shadow:var(--shadow)}
+.grp .row-item{border:none;box-shadow:none;margin-bottom:2px;padding:9px 6px;border-radius:10px}
+.grp-label{font-size:12.5px;font-weight:800;color:var(--text-dim);margin:0 4px 6px}
+/* 담기 확정 바 */
+.cleanbar{position:sticky;bottom:74px;margin:14px 0 4px}
+.cleanbar button{width:100%;padding:17px;border:none;border-radius:16px;background:var(--primary);color:#fff;font-size:16.5px;font-weight:900;box-shadow:0 6px 18px rgba(51,61,75,.28);cursor:pointer}
+.cleanbar button:disabled{background:#CBD3DA;box-shadow:none;color:#fff}
+/* 진행 오버레이 */
+.prog-ov{position:fixed;inset:0;background:rgba(43,37,25,.45);display:none;align-items:center;justify-content:center;z-index:60}
+.prog-ov.on{display:flex}
+.prog-box{background:var(--card);border-radius:22px;padding:28px 26px;width:min(320px,86vw);text-align:center}
+.prog-em{font-size:34px}
+.prog-t{font-size:16px;font-weight:900;color:var(--ink);margin:10px 0 4px}
+.prog-d{font-size:13.5px;font-weight:700;color:var(--text-dim);margin-bottom:14px}
+.prog-bar{height:10px;border-radius:6px;background:var(--primary-soft);overflow:hidden}
+.prog-fill{height:100%;width:0%;background:var(--primary);border-radius:6px;transition:width .12s linear}
+
+.all-search{width:100%;padding:14px 16px;border:1.5px solid var(--card-line);border-radius:14px;background:var(--card);font-size:15px;font-weight:700;color:var(--ink);outline:none;box-shadow:var(--shadow)}
+.all-search:focus{border-color:var(--primary)}
+
+.fname-row{display:flex;align-items:center;gap:8px;background:var(--card);border:1.5px solid var(--card-line);border-radius:14px;padding:10px 14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.fname-label{font-size:13px;font-weight:800;color:var(--text-dim);flex:none}
+.fname-input{flex:1;min-width:0;border:none;background:transparent;font-size:16px;font-weight:800;color:var(--ink);outline:none;padding:4px 2px}
+.fname-ext{font-size:14px;font-weight:800;color:var(--text-faint);flex:none}
+
+.svgi{width:1.05em;height:1.05em;vertical-align:-0.14em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sum-ico svg{width:22px;height:22px;color:var(--primary)}
+.btn-call svg{width:19px;height:19px;color:var(--ink-soft)}
+.done-svg{width:64px;height:64px;color:var(--primary);margin:0 auto;display:block}
+.prog-svg{width:44px;height:44px;color:var(--primary);margin:0 auto;display:block}
+.fmt-chips{display:flex;gap:8px;margin-bottom:12px}
+.fmt-chip{flex:1;padding:11px;border-radius:12px;border:1.5px solid var(--card-line);background:var(--card);font-size:13.5px;font-weight:800;color:var(--ink-soft);cursor:pointer}
+.fmt-chip.on{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
 </style>
 </head>
 <body>
+<div class="app">
 
-<div id="intro">
-  <div class="logo" id="introLogo"></div>
-  <h1>동네몬스터</h1>
-  <p>동네를 걷다 보면<br>숨어 있던 몬스터가<br>하나 둘 나타나요</p>
-  <button class="start" onclick="startApp()">시작하기</button>
-</div>
-
-<header>
-  <div class="hicon" id="headLogo"></div>
-  <div class="htxt"><b>동네몬스터</b><span>우리 동네 몬스터 도감</span></div>
-  <div class="catch-count" id="catchCount">0 / 151</div>
-</header>
-
-<div class="tabs">
-  <button class="on" id="tabExplore" onclick="switchTab('explore')">탐험</button>
-  <button id="tabDex" onclick="switchTab('dex')">도감</button>
-</div>
-
-<div class="page on" id="pageExplore">
-  <div class="map-wrap" id="mapWrap">
-    <div class="map-grid"></div>
-    <div class="range-ring" id="rangeRing"></div>
-    <div class="compass" id="compass"><div class="needle" id="needle"></div></div>
-    <div class="facing front" id="facingTop">앞</div>
-    <div class="facing back" id="facingBot">뒤</div>
-    <div class="me"><div class="halo"></div><div class="arrow" id="meArrow"></div></div>
+  <!-- ===== 인트로 ===== -->
+  <div class="screen on" id="s-intro">
+    <svg class="intro-badge" viewBox="0 0 96 96" fill="none">
+      <rect x="8" y="8" width="80" height="80" rx="22" fill="#333D4B"/>
+      <path d="M32 42h32M32 52h22" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="68" cy="60" r="14" fill="#4E5968" stroke="#fff" stroke-width="3"/>
+      <path d="M63 60l3.5 3.5L74 56" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h1 class="intro-title">전번 다 지워</h1>
+    <p class="intro-sub">쌓여만 가는 전화번호,<br>이제 하나씩 정리해요</p>
+    <div class="intro-lines">
+      연락처 <b>백업 파일(VCF)</b>을 열어서<br>
+      <b>이름 없는 번호</b> · <b>중복된 번호</b>를 찾아드려요<br>
+      "이거 누구지?" 싶으면 전화로 확인
+    </div>
+    <button class="intro-cta" id="introStart">백업 파일 열기</button>
+    <button class="big-btn ghost" id="introGuide" style="margin-top:10px">백업 파일이 없어요 · 만드는 법</button>
+    <p class="intro-safe">
+      <b>파일을 읽기만 해요.</b> 폰 연락처는 절대 건드리지 않아요.<br>
+      서버 전송도 없어요 — 모든 건 내 폰 안에서만.
+    </p>
+    <input type="file" id="vcfInput" accept=".vcf,text/vcard,text/x-vcard" style="display:none">
   </div>
-  <div class="status-row">
-    <div class="gps" id="gpsStat"><span class="led off"></span>위치 확인 중…</div>
-    <button class="mode-toggle" id="modeToggle" onclick="toggleMode()">테스트 이동</button>
+
+  <!-- ===== 내보내기 안내 ===== -->
+  <div class="screen" id="s-guide">
+    <div class="top">
+      <div class="top-row">
+        <svg class="top-badge" viewBox="0 0 96 96" fill="none">
+          <rect x="8" y="8" width="80" height="80" rx="22" fill="#333D4B"/>
+          <path d="M32 42h32M32 52h22" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="68" cy="60" r="14" fill="#4E5968" stroke="#fff" stroke-width="3"/>
+          <path d="M63 60l3.5 3.5L74 56" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div>
+          <div class="top-title">백업 파일 만들기</div>
+          <div class="top-sub">폰 연락처 앱에서 1분이면 돼요</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="policy" style="margin-top:8px">
+      <div class="policy-title">백업 파일(VCF)이 뭐예요?</div>
+      <ul class="policy-list">
+        <li>연락처 전체를 담은 <b>파일 한 개</b>예요</li>
+        <li>만드는 순간 그 자체가 <b>안전한 백업</b>이 돼요</li>
+        <li>이 파일을 열어 정리 후보를 찾아드려요</li>
+      </ul>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">폰 연락처 앱 열기</div>
+          <div class="step-desc">폰의 기본 <b>연락처(전화번호부) 앱</b>을 열어요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">연락처 관리 들어가기</div>
+          <div class="step-desc">연락처 화면에서 <b>메뉴(≡)</b>를 누르고 → <b>연락처 관리</b>를 눌러요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">내보내기 하기</div>
+          <div class="step-desc"><b>연락처 가져오기 또는 내보내기</b> → <b>내보내기</b> → <b>내장 메모리</b>를 선택해요. 그러면 <b>연락처.vcf</b> 파일이 만들어져요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">그 파일 열기</div>
+          <div class="step-desc">아래 버튼을 눌러 방금 만든 <b>.vcf 파일</b>을 선택하면 끝!<br><span style="opacity:.75">아이폰: 연락처 앱에서 연락처 선택 → 공유로 파일을 만들어요.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="big-btn" id="guideOpen">저장한 백업 파일 열기</button>
+    <button class="big-btn ghost" id="guideBack" style="margin-top:10px">뒤로</button>
+
+    <div class="foot-note">
+      <b>왜 이 방식인가요?</b><br>
+      앱이 연락처에 직접 손대지 않으니 <b>가장 안전</b>해요.
+      게다가 내보내기한 파일이 곧 백업이라, 정리 전에 <b>보험부터 드는 셈</b>이에요.
+    </div>
   </div>
-  <div class="dpad" id="dpad">
-    <div class="row"><button onclick="vforward(1)">▲ 앞으로</button></div>
-    <div class="row"><button onclick="vturn(-1)">↺ 좌회전</button><button onclick="vforward(-1)">▼ 뒤로</button><button onclick="vturn(1)">↻ 우회전</button></div>
-    <div class="hint">앞으로 걸으며 정면(위쪽)의 몬스터를 잡아보세요</div>
+
+  <!-- ===== 메인(스캔 결과) ===== -->
+  <div class="screen" id="s-main">
+    <div class="top">
+      <div class="top-row">
+        <svg class="top-badge" viewBox="0 0 96 96" fill="none">
+          <rect x="8" y="8" width="80" height="80" rx="22" fill="#333D4B"/>
+          <path d="M32 42h32M32 52h22" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="68" cy="60" r="14" fill="#4E5968" stroke="#fff" stroke-width="3"/>
+          <path d="M63 60l3.5 3.5L74 56" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div>
+          <div class="top-title">전번 다 지워</div>
+          <div class="top-sub" id="topSub">연락처를 살펴봤어요</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 정책 고지 -->
+    <div class="policy">
+      <div class="policy-title">이 앱이 지키는 약속</div>
+      <ul class="policy-list">
+        <li>백업 파일을 <b>읽기만</b> 해요 (폰 연락처는 안 건드림)</li>
+        <li><b>서버 전송 없음</b> — 모든 처리는 내 폰 안에서만</li>
+        <li>정리 대상만 <b>찾아서 보여드려요</b></li>
+        <li>실제 정리는 <b>폰 연락처 앱에서 직접</b> 하세요</li>
+      </ul>
+    </div>
+
+    <div class="sum-list" id="sumList"></div>
+
+    <div class="cleanbar"><button id="btnClean" disabled>정리된 파일 만들기</button></div>
+
+    <div class="foot-note">
+      <b>어떻게 쓰나요?</b><br>
+      항목을 눌러 들어가서, 지울 번호에 <b>[삭제]</b>를 누르세요.
+      원본 파일은 그대로 두고, 삭제 표시한 번호만 <b>뺀 새 파일</b>을 만들어 드려요.
+      새 폰엔 그 파일로 가져오면 깔끔하게 이사 끝!
+    </div>
   </div>
-  <div id="catchZone"></div>
+
+  <!-- ===== 완료 ===== -->
+  <div class="screen" id="s-done">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="done-svg"><circle cx="12" cy="12" r="9.5"/><path d="M7.5 12.5l3 3 6-6.5"/></svg>
+    <div class="done-title">정리 완료!</div>
+    <p class="done-desc" id="doneDesc">정리된 새 백업 파일을 만들었어요.<br>새 폰엔 이 파일로 가져오면 끝!</p>
+    <div class="done-stat">
+      <div class="done-stat-num" id="doneNum">0</div>
+      <div class="done-stat-label">개를 빼고 저장했어요</div>
+    </div>
+    <div class="fmt-chips">
+      <button class="fmt-chip on" data-scope="clean" data-fmt="vcf">VCF · 폰 연락처용</button>
+      <button class="fmt-chip" data-scope="clean" data-fmt="csv">CSV · 구글 주소록용</button>
+    </div>
+    <div class="fname-row">
+      <span class="fname-label">파일 이름</span>
+      <input class="fname-input" id="cleanName" type="text" value="연락처_정리" autocomplete="off">
+      <span class="fname-ext" id="cleanExt">.vcf</span>
+    </div>
+    <button class="big-btn" id="doneSave"><svg class="svgi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0l-4.5-4.5M12 14l4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg> 정리된 파일 내 폰에 저장</button>
+    <button class="big-btn ghost" id="doneShare" style="margin-top:10px"><svg class="svgi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/></svg> 카톡·메일로 보내기</button>
+    <button class="big-btn ghost" id="doneRestart" style="margin-top:10px">계속 정리하기</button>
+  </div>
+
+  <!-- ===== 백업 ===== -->
+  <div class="screen" id="s-backup">
+    <div class="top">
+      <div class="top-row">
+        <svg class="top-badge" viewBox="0 0 96 96" fill="none">
+          <rect x="8" y="8" width="80" height="80" rx="22" fill="#333D4B"/>
+          <path d="M32 42h32M32 52h22" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="68" cy="60" r="14" fill="#4E5968" stroke="#fff" stroke-width="3"/>
+          <path d="M63 60l3.5 3.5L74 56" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div>
+          <div class="top-title">연락처 백업</div>
+          <div class="top-sub">이미 안전해요 — 파일이 곧 백업</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="backup-hero">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:52px;height:52px;color:var(--primary);display:block;margin:0 auto 6px"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3"/><rect x="8" y="13" width="8" height="7"/></svg>
+      <div class="backup-count" id="backupCount">—</div>
+      <div class="backup-count-label">개의 연락처</div>
+    </div>
+
+    <div class="policy">
+      <div class="policy-title">어떻게 백업되나요?</div>
+      <ul class="policy-list">
+        <li>열었던 파일 그대로가 <b>이미 백업</b>이에요</li>
+        <li>여기서 <b>새 백업 파일</b>을 한 번 더 만들 수도 있어요</li>
+        <li><b>일반 공유</b>로 카톡·메일·드라이브에 보낼 수 있어요</li>
+        <li>파일을 <b>우리가 보관하지 않아요</b> (내가 보낸 곳에만)</li>
+        <li>폰 바꾸면 그 파일로 <b>연락처를 복원</b>할 수 있어요</li>
+      </ul>
+    </div>
+
+    <div class="fmt-chips">
+      <button class="fmt-chip on" data-scope="backup" data-fmt="vcf">VCF · 폰 연락처용</button>
+      <button class="fmt-chip" data-scope="backup" data-fmt="csv">CSV · 구글 주소록용</button>
+    </div>
+    <div class="fname-row">
+      <span class="fname-label">파일 이름</span>
+      <input class="fname-input" id="backupName" type="text" value="연락처" autocomplete="off">
+      <span class="fname-ext" id="backupExt">.vcf</span>
+    </div>
+    <button class="big-btn" id="btnBackup">
+      <svg class="svgi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0l-4.5-4.5M12 14l4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg> 백업 파일 내 폰에 저장
+    </button>
+    <button class="big-btn ghost" id="btnBackupShare" style="margin-top:10px">
+      <svg class="svgi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/></svg> 카톡·메일로 보내기 (공유)
+    </button>
+    <button class="big-btn ghost" id="btnBackupCopy" style="margin-top:10px">
+      저장이 안 되면 · 텍스트로 복사
+    </button>
+    <p class="backup-tip">저장하면 <b>파일 앱 → 다운로드</b>에 담겨요.<br>카톡 전송: 카톡에서 <b>＋ → 파일</b> → 다운로드에서 선택하면 확실해요!</p>
+
+    <div class="foot-note">
+      <b>복원은 어떻게 하나요?</b><br>
+      아래 <b>복원</b> 탭에서 방법을 확인하세요. 백업해둔 VCF 파일만 있으면
+      새 폰에서도 몇 번의 탭으로 연락처를 되살릴 수 있어요.
+    </div>
+  </div>
+
+  <!-- ===== 복원 안내 ===== -->
+  <div class="screen" id="s-restore">
+    <div class="top">
+      <div class="top-row">
+        <svg class="top-badge" viewBox="0 0 96 96" fill="none">
+          <rect x="8" y="8" width="80" height="80" rx="22" fill="#333D4B"/>
+          <path d="M32 42h32M32 52h22" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="68" cy="60" r="14" fill="#4E5968" stroke="#fff" stroke-width="3"/>
+          <path d="M63 60l3.5 3.5L74 56" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div>
+          <div class="top-title">연락처 복원</div>
+          <div class="top-sub">새 폰에서 되살리기</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="policy" style="margin-top:8px">
+      <div class="policy-title">백업 파일로 복원하기</div>
+      <ul class="policy-list">
+        <li>이 앱은 <b>길만 안내해요</b> — 복원은 폰이 직접 해요</li>
+        <li>정리해 저장한 <b>VCF 파일</b>만 있으면 돼요</li>
+      </ul>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">정리된 파일 준비</div>
+          <div class="step-desc">이 앱에서 저장한 파일은 <b>내 파일 → 내장 메모리 → Download</b> 폴더에 있어요. 카톡·드라이브로 받았어도 같은 폴더예요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">연락처 관리 들어가기</div>
+          <div class="step-desc"><b>연락처 앱</b> → <b>메뉴(≡)</b> → <b>연락처 관리</b> → <b>연락처 가져오기 또는 내보내기</b> → <b>가져오기</b>를 눌러요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">파일 위치 고르기</div>
+          <div class="step-desc"><b>내장 메모리</b>를 선택하고, <b>Download 폴더</b>의 정리된 파일(연락처_정리.vcf)을 골라요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">저장 위치 선택 → 가져오기</div>
+          <div class="step-desc">연락처를 저장할 곳(<b>휴대전화</b> 또는 구글·삼성 계정)을 고르고 <b>가져오기</b>를 누르면, 연락처가 되살아나요!</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot-note">
+      <b>왜 앱이 직접 복원 안 하나요?</b><br>
+      연락처에 쓰는 건 위험할 수 있어서, 안전하게 <b>폰 기본 앱</b>에 맡겨요.
+      우린 파일을 만들고 길을 안내할 뿐, 아무것도 직접 건드리지 않아요.
+    </div>
+  </div>
+
+
+  <!-- ===== 카테고리 상세 ===== -->
+  <div class="screen" id="s-cat">
+    <div class="cat-head">
+      <button class="cat-back" id="catBack">←</button>
+      <div>
+        <div class="cat-title" id="catTitle">—</div>
+        <div class="cat-sub" id="catSub">—</div>
+      </div>
+    </div>
+    <div class="cat-tools" id="catTools"></div>
+    <div id="catBody"></div>
+    <div class="cleanbar"><button id="btnClean2" disabled>정리된 파일 만들기</button></div>
+  </div>
+
+  <!-- ===== 하단 탭바 ===== -->
+  <div class="tabbar" id="tabbar">
+    <button class="tab on" data-tab="main">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h11M4 17h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>정리</span>
+    </button>
+    <button class="tab" data-tab="backup">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v11m0 0l-4-4m4 4l4-4M5 17v2a2 2 0 002 2h10a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>백업</span>
+    </button>
+    <button class="tab" data-tab="restore">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 21V10m0 0l-4 4m4-4l4 4M5 7V5a2 2 0 012-2h10a2 2 0 012 2v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>복원</span>
+    </button>
+  </div>
+
 </div>
 
-<div class="page" id="pageDex">
-  <div class="dex-head"><b>몬스터 도감</b><span id="dexProgress">0마리 발견</span></div>
-  <div class="dex-grid" id="dexGrid"></div>
+
+<div class="prog-ov" id="progOv">
+  <div class="prog-box">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="prog-svg"><path d="M14 3l-4.5 9"/><path d="M6 13.5c2.5-1.5 5.5-1.2 7.5.7L11 21c-3-.3-5.5-2-7-4.5z"/><path d="M17 8h4M18.5 12h3M17.5 4.5l2.5-1.5"/></svg>
+    <div class="prog-t">정리된 파일 만드는 중…</div>
+    <div class="prog-d" id="progDesc">연락처를 정리하고 있어요</div>
+    <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+  </div>
 </div>
 
-<div class="sheet-bg" id="sheetBg" onclick="closeSheet()"></div>
-<div class="sheet" id="sheet"></div>
-
-<!-- 잡기 연출 -->
-<div id="catchFx">
-  <div id="fxFlash"></div>
-  <div id="fxMon"></div>
-  <div id="fxOrb"><div class="core"></div><div class="spark"></div></div>
-  <div id="fxResult"></div>
-</div>
-
-<div id="toast"></div>
+<div class="toast" id="toast"></div>
 
 <script>
-/* ================= 설정 ================= */
-var CELL=0.00035, SPAWN_RATE=0.22, CATCH_RANGE=25, MAP_RADIUS_M=150, SCAN=6, STEP_M=8;
-var COOLDOWN=6*60*60*1000;
-var DEFAULT_POS={lat:37.5665, lng:126.9780};
-var HIDE_UNCAUGHT=true; // 안 잡은 몬스터는 실루엣(?)으로 표시
+/* ================= 설정/상태 ================= */
+var contacts = [];       // 전체 연락처 [{name, phoneNumber}]
+var mode = 'noname';     // 'noname' | 'dup'
+var noNameList = [];
+var checkedCount = 0;
 
-/* ===== 아트/생성 모듈 v0.4 ===== */
-/* ===== RNG ===== */
-function hash2(x,y){var h=2166136261>>>0;h=Math.imul(h^(x&0xffff),16777619);h=Math.imul(h^((x>>>16)&0xffff),16777619);h=Math.imul(h^(y&0xffff),16777619);h=Math.imul(h^((y>>>16)&0xffff),16777619);h=Math.imul(h^0x9e37,16777619);return h>>>0;}
-function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-function rngFor(id,salt){return mulberry32(hash2(id*2654435761&0x7fffffff,salt));}
-
-/* ===== 타입/티어 ===== */
-var TYPEDEF={
-  normal:{n:'노멀',badge:'#9CA3AF',hues:[[340,52,79],[35,58,80],[24,32,68],[275,30,80]]},
-  fire:{n:'불',badge:'#F97316',hue:16,sat:88,light:60},
-  water:{n:'물',badge:'#3B82F6',hue:210,sat:78,light:63},
-  grass:{n:'풀',badge:'#22C55E',hue:132,sat:52,light:57},
-  elec:{n:'전기',badge:'#EAB308',hue:47,sat:90,light:62},
-  rock:{n:'바위',badge:'#A8836B',hue:26,sat:20,light:56},
-  fly:{n:'비행',badge:'#7DA9E0',hue:206,sat:52,light:78},
-  bug:{n:'벌레',badge:'#84CC16',hue:92,sat:52,light:55},
-  ice:{n:'얼음',badge:'#38BDF8',hue:190,sat:62,light:80},
-  ghost:{n:'고스트',badge:'#7C5C9E',hue:270,sat:34,light:50},
-  dragon:{n:'드래곤',badge:'#14B8A6',hue:168,sat:58,light:48},
-  star:{n:'별',badge:'#F59E0B',hue:45,sat:92,light:62}
-};
-var TIERDEF={common:{w:100,c:'#B7BDC7',n:'흔함'},uncommon:{w:40,c:'#4F9E7B',n:'가끔'},rare:{w:12,c:'#3B82F6',n:'희귀'},legendary:{w:3,c:'#F59E0B',n:'전설'}};
-var TYPE_COUNTS={normal:18,fire:14,water:16,grass:16,elec:12,rock:12,fly:12,bug:14,ice:11,ghost:10,dragon:9,star:7};
-
-function hslHex(h,s,l){s/=100;l/=100;var k=function(n){return(n+h/30)%12;};var a=s*Math.min(l,1-l);var f=function(n){var c=k(n);var col=l-a*Math.max(-1,Math.min(c-3,Math.min(9-c,1)));return Math.round(255*col);};var to=function(x){x=Math.max(0,Math.min(255,x));var q=x.toString(16);return q.length==1?'0'+q:q;};return '#'+to(f(0))+to(f(8))+to(f(4));}
-function colorsFor(type,r){var d=TYPEDEF[type],h,s,l;if(type==='normal'){var p=d.hues[Math.floor(r()*d.hues.length)];h=p[0];s=p[1];l=p[2];}else{h=d.hue+(r()*20-10);s=d.sat;l=d.light;}h=(h+360)%360;return {c:hslHex(h,s,l),c2:hslHex(h,Math.min(100,s+10),Math.max(22,l-24)),cl:hslHex(h,Math.max(14,s-26),Math.min(94,l+15))};}
-
-/* ===== 눈/입/볼 ===== */
-function eyeOne(x,y,rw,rh){return '<ellipse cx="'+x+'" cy="'+y+'" rx="'+rw+'" ry="'+rh+'" fill="#fff"/><circle cx="'+x+'" cy="'+(y+rh*0.28).toFixed(1)+'" r="'+(rw*0.62).toFixed(1)+'" fill="#2A2A33"/><circle cx="'+(x+rw*0.32).toFixed(1)+'" cy="'+(y-rh*0.24).toFixed(1)+'" r="'+(rw*0.24).toFixed(1)+'" fill="#fff"/>';}
-function eyesFor(style,x1,x2,y){
-  if(style==='sleepy')return '<path d="M'+(x1-6)+' '+y+' q6 5 12 0" stroke="#2A2A33" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M'+(x2-6)+' '+y+' q6 5 12 0" stroke="#2A2A33" stroke-width="3" fill="none" stroke-linecap="round"/>';
-  if(style==='glow')return '<ellipse cx="'+x1+'" cy="'+y+'" rx="7.5" ry="9" fill="#FFE27A"/><ellipse cx="'+x2+'" cy="'+y+'" rx="7.5" ry="9" fill="#FFE27A"/><circle cx="'+x1+'" cy="'+(y+1.5)+'" r="3.6" fill="#2A2A33"/><circle cx="'+x2+'" cy="'+(y+1.5)+'" r="3.6" fill="#2A2A33"/>';
-  if(style==='star'){var s=function(x,y){return '<path d="M'+x+' '+(y-8)+' l2.2 5.4 l5.8 0 l-4.7 3.6 l1.8 5.6 l-5.1-3.5 l-5.1 3.5 l1.8-5.6 l-4.7-3.6 l5.8 0 Z" fill="#FFE27A"/>';};return s(x1,y)+s(x2,y);}
-  return eyeOne(x1,y,7.8,8.8)+eyeOne(x2,y,7.8,8.8);
+/* ================= 화면 전환 ================= */
+function show(id){
+  var scs = document.querySelectorAll('.screen');
+  for(var i=0;i<scs.length;i++) scs[i].classList.remove('on');
+  document.getElementById('s-'+id).classList.add('on');
+  window.scrollTo(0,0);
 }
-function mouthD(m,y){if(m===0)return '<path d="M45 '+y+' q5 4 10 0" stroke="rgba(60,30,30,.5)" stroke-width="2.4" fill="none" stroke-linecap="round"/>';if(m===1)return '<path d="M47 '+y+' q3 2.5 6 0" stroke="rgba(60,30,30,.5)" stroke-width="2.2" fill="none" stroke-linecap="round"/>';return '<path d="M45 '+(y-1)+' Q50 '+(y+6)+' 55 '+(y-1)+' Z" fill="rgba(150,50,50,.55)"/>';}
-function blushD(x1,x2,y){return '<ellipse cx="'+x1+'" cy="'+y+'" rx="5" ry="3.2" fill="rgba(255,120,150,.4)"/><ellipse cx="'+x2+'" cy="'+y+'" rx="5" ry="3.2" fill="rgba(255,120,150,.4)"/>';}
 
-/* ===== 실루엣 라이브러리 ===== */
-var BODYLIB={
- round:function(g,F){return {svg:'<ellipse cx="38" cy="86" rx="9" ry="5.5" fill="'+g.c2+'"/><ellipse cx="62" cy="86" rx="9" ry="5.5" fill="'+g.c2+'"/><ellipse cx="50" cy="49" rx="35" ry="34" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/>',ex1:39,ex2:61,ey:47,topY:16};},
- bean:function(g,F){return {svg:'<rect x="37" y="66" width="10" height="22" rx="5" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2.4"/><rect x="53" y="66" width="10" height="22" rx="5" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2.4"/><ellipse cx="21" cy="50" rx="7" ry="11" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2.2"/><ellipse cx="79" cy="50" rx="7" ry="11" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2.2"/><ellipse cx="50" cy="44" rx="27" ry="33" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/>',ex1:40,ex2:60,ey:41,topY:12};},
- quad:function(g,F){return {svg:'<rect x="30" y="60" width="9" height="22" rx="4.5" fill="'+g.c2+'"/><rect x="44" y="62" width="9" height="22" rx="4.5" fill="'+g.c2+'"/><rect x="59" y="60" width="9" height="22" rx="4.5" fill="'+g.c2+'"/><path d="M82 54 q14 -2 12 -14 q6 12 -6 20 Z" fill="'+g.c2+'"/><ellipse cx="50" cy="50" rx="35" ry="26" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/>',ex1:40,ex2:60,ey:47,topY:22};},
- bird:function(g,F){return {svg:'<line x1="43" y1="80" x2="43" y2="90" stroke="'+g.c2+'" stroke-width="3"/><line x1="57" y1="80" x2="57" y2="90" stroke="'+g.c2+'" stroke-width="3"/><path d="M38 90 l-5 3 M43 90 l0 4 M48 90 l5 3" stroke="'+g.c2+'" stroke-width="2.4" stroke-linecap="round"/><path d="M52 90 l-5 3 M57 90 l0 4 M62 90 l5 3" stroke="'+g.c2+'" stroke-width="2.4" stroke-linecap="round"/><path d="M22 52 Q6 46 12 66 Q22 62 32 58 Z" fill="'+g.cl+'" stroke="'+g.c2+'" stroke-width="1.6"/><path d="M78 52 Q94 46 88 66 Q78 62 68 58 Z" fill="'+g.cl+'" stroke="'+g.c2+'" stroke-width="1.6"/><ellipse cx="50" cy="50" rx="30" ry="33" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/><path d="M44 56 L50 66 L56 56 Z" fill="#F6A623" stroke="'+g.c2+'" stroke-width="1.4"/>',ex1:41,ex2:59,ey:44,topY:15};},
- fish:function(g,F){return {svg:'<path d="M74 54 q22 -14 24 -2 q-2 6 -4 10 q6 8 2 16 q-14 -6 -22 -8 Z" fill="'+g.c2+'" stroke="'+g.c2+'" stroke-width="1"/><path d="M40 78 q-4 12 8 12 q2 -8 -2 -14 Z" fill="'+g.c2+'"/><ellipse cx="46" cy="54" rx="32" ry="27" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/>',ex1:37,ex2:55,ey:50,topY:26};},
- slime:function(g,F){return {svg:'<path d="M14 74 Q14 30 50 30 Q86 30 86 74 Q86 82 78 78 Q74 88 68 80 Q62 90 56 80 Q50 90 44 80 Q38 90 32 80 Q26 88 22 78 Q14 82 14 74 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/>',ex1:41,ex2:59,ey:54,topY:30};},
- bug:function(g,F){return {svg:'<path d="M32 58 l-14 6 M32 66 l-15 2 M32 74 l-13 8 M68 58 l14 6 M68 66 l15 2 M68 74 l13 8" stroke="'+g.c2+'" stroke-width="3" stroke-linecap="round"/><path d="M42 30 Q36 14 30 10" stroke="'+g.c2+'" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="30" cy="9" r="4" fill="'+g.c2+'"/><path d="M58 30 Q64 14 70 10" stroke="'+g.c2+'" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="70" cy="9" r="4" fill="'+g.c2+'"/><ellipse cx="50" cy="56" rx="27" ry="31" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/><path d="M23 56 h54 M25 70 h50" stroke="'+g.c2+'" stroke-width="1.6" opacity=".35"/>',ex1:41,ex2:59,ey:47,topY:22};},
- ghost:function(g,F){return {svg:'<path d="M50 12 a33 31 0 0 1 33 31 v30 q-5 7 -11 0 q-5 7 -11 0 q-5 7 -11 0 q-5 7 -11 0 q-6 7 -11 0 V43 a33 31 0 0 1 33 -31 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.6" opacity=".96"/>',ex1:40,ex2:60,ey:44,topY:16};},
- golem:function(g,F){return {svg:'<rect x="14" y="48" width="13" height="26" rx="5" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.4"/><rect x="73" y="48" width="13" height="26" rx="5" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.4"/><path d="M28 40 L44 28 L62 30 L76 44 L72 74 L52 84 L30 76 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8" stroke-linejoin="round"/>',ex1:42,ex2:60,ey:52,topY:28};},
- dino:function(g,F){return {svg:'<path d="M74 66 q26 2 24 -18 q10 20 -10 32 q-10 4 -16 -6 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.6"/><rect x="38" y="66" width="11" height="22" rx="5" fill="'+g.c2+'"/><rect x="53" y="66" width="11" height="22" rx="5" fill="'+g.c2+'"/><ellipse cx="30" cy="56" rx="6" ry="9" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2"/><path d="M50 22 a30 30 0 0 1 30 30 q0 22 -30 22 q-30 0 -30 -22 a30 30 0 0 1 30 -30 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/>',ex1:41,ex2:59,ey:46,topY:20};},
- serpent:function(g,F){return {svg:'<path d="M50 16 a26 26 0 0 1 26 26 q0 20 -20 24 q-14 3 -14 12 q0 8 10 8 q8 0 10 -6" fill="none" stroke="'+g.c2+'" stroke-width="24" stroke-linecap="round"/><path d="M50 16 a26 26 0 0 1 26 26 q0 20 -20 24 q-14 3 -14 12 q0 8 10 8 q8 0 10 -6" fill="none" stroke="'+g.c+'" stroke-width="20" stroke-linecap="round"/>',ex1:42,ex2:58,ey:40,topY:12};},
- star:function(g,F){return {svg:'<path d="M50 8 L61 38 L94 40 L67 60 L77 92 L50 72 L23 92 L33 60 L6 40 L39 38 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8" stroke-linejoin="round"/>',ex1:42,ex2:58,ey:48,topY:22};},
- gem:function(g,F){return {svg:'<path d="M28 40 L36 24 L44 40 Z" fill="'+g.c2+'"/><path d="M60 42 L68 26 L76 42 Z" fill="'+g.c2+'"/><path d="M50 20 L74 48 L62 82 L38 82 L26 48 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8" stroke-linejoin="round"/><path d="M50 20 L62 82 L50 56 Z" fill="#fff" opacity=".16"/>',ex1:42,ex2:58,ey:50,topY:22};},
- fluff:function(g,F){return {svg:'<path d="M24 66 a14 14 0 0 1 2 -26 a17 17 0 0 1 34 -6 a15 15 0 0 1 12 32 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.6"/>',ex1:42,ex2:58,ey:48,topY:20};},
- octopus:function(g,F){var t='';[28,39,50,61,72].forEach(function(x,i){var d=i%2?1:-1;t+='<path d="M'+x+' 62 q'+(d*7)+' 14 '+(d*2)+' 26 q-5 4 -9 0 q'+(d*4)+' -12 '+(d*1)+' -24 Z" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2"/>';});return {svg:t+'<ellipse cx="50" cy="44" rx="31" ry="27" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/>',ex1:40,ex2:60,ey:42,topY:18};},
- mushroom:function(g,F){return {svg:'<rect x="38" y="54" width="24" height="30" rx="11" fill="'+g.cl+'" stroke="'+g.c2+'" stroke-width="2.6"/><path d="M18 52 Q18 22 50 22 Q82 22 82 52 Q60 60 50 58 Q40 60 18 52 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/><circle cx="36" cy="40" r="5" fill="#fff" opacity=".85"/><circle cx="58" cy="36" r="6.5" fill="#fff" opacity=".85"/><circle cx="68" cy="46" r="4" fill="#fff" opacity=".85"/>',ex1:44,ex2:56,ey:66,topY:20};},
- caterpillar:function(g,F){var t='';[[30,64,15],[44,58,16],[59,58,16],[73,64,14]].forEach(function(s){t+='<circle cx="'+s[0]+'" cy="'+s[1]+'" r="'+s[2]+'" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.4"/>';});return {svg:t+'<line x1="26" y1="52" x2="22" y2="42" stroke="'+g.c2+'" stroke-width="2.6" stroke-linecap="round"/><circle cx="21" cy="40" r="3" fill="'+g.c2+'"/><line x1="34" y1="52" x2="32" y2="42" stroke="'+g.c2+'" stroke-width="2.6" stroke-linecap="round"/><circle cx="31" cy="40" r="3" fill="'+g.c2+'"/>',ex1:24,ex2:36,ey:62,topY:44};},
- spider:function(g,F){var t='';for(var i=0;i<4;i++){var y=48+i*8;t+='<path d="M28 '+y+' q-16 -2 -20 '+(i<2?-6:8)+'" stroke="'+g.c2+'" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M72 '+y+' q16 -2 20 '+(i<2?-6:8)+'" stroke="'+g.c2+'" stroke-width="2.6" fill="none" stroke-linecap="round"/>';}return {svg:t+'<ellipse cx="50" cy="58" rx="26" ry="24" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/>',ex1:42,ex2:58,ey:54,topY:34};},
- rabbit:function(g,F){return {svg:'<ellipse cx="40" cy="20" rx="7" ry="18" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.4"/><ellipse cx="60" cy="20" rx="7" ry="18" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.4"/><ellipse cx="40" cy="20" rx="3.2" ry="12" fill="#F7B8C8"/><ellipse cx="60" cy="20" rx="3.2" ry="12" fill="#F7B8C8"/><ellipse cx="35" cy="84" rx="9" ry="5" fill="'+g.c2+'"/><ellipse cx="65" cy="84" rx="9" ry="5" fill="'+g.c2+'"/><ellipse cx="50" cy="56" rx="30" ry="30" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/>',ex1:41,ex2:59,ey:52,topY:6};},
- hedgehog:function(g,F){var sp='';for(var i=0;i<11;i++){var a=(-80+i*16)*Math.PI/180;var x=(50+Math.cos(a)*34).toFixed(1),y=(50+Math.sin(a)*34).toFixed(1);sp+='<path d="M'+(50+Math.cos(a)*20).toFixed(1)+' '+(50+Math.sin(a)*20).toFixed(1)+' L'+x+' '+y+' L'+(50+Math.cos(a+0.14)*20).toFixed(1)+' '+(50+Math.sin(a+0.14)*20).toFixed(1)+' Z" fill="'+g.c2+'"/>';}return {svg:sp+'<ellipse cx="50" cy="56" rx="30" ry="27" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.6"/>',ex1:44,ex2:60,ey:58,topY:30};},
- robot:function(g,F){return {svg:'<rect x="34" y="12" width="4" height="10" fill="'+g.c2+'"/><circle cx="36" cy="10" r="4" fill="#F6C544"/><rect x="26" y="52" width="10" height="26" rx="3" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2.2"/><rect x="64" y="52" width="10" height="26" rx="3" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2.2"/><rect x="30" y="78" width="16" height="8" rx="3" fill="'+g.c2+'"/><rect x="54" y="78" width="16" height="8" rx="3" fill="'+g.c2+'"/><rect x="30" y="46" width="40" height="34" rx="8" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/><rect x="32" y="20" width="36" height="30" rx="9" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/><rect x="39" y="30" width="9" height="9" rx="2" fill="#7FE7FF" stroke="'+g.c2+'" stroke-width="1.2"/><rect x="52" y="30" width="9" height="9" rx="2" fill="#7FE7FF" stroke="'+g.c2+'" stroke-width="1.2"/><path d="M44 44 h12" stroke="'+g.c2+'" stroke-width="2" stroke-linecap="round"/>',noEyes:true,ex1:44,ex2:56,ey:34,topY:12};},
- jellyfish:function(g,F){var t='';[34,42,50,58,66].forEach(function(x,i){t+='<path d="M'+x+' 52 q'+((i-2)*2)+' 20 0 32" stroke="'+g.c+'" stroke-width="3" fill="none" stroke-linecap="round" opacity=".85"/>';});return {svg:'<path d="M18 52 Q18 20 50 20 Q82 20 82 52 Q66 58 50 56 Q34 58 18 52 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.6" opacity=".92"/>'+t,ex1:41,ex2:59,ey:44,topY:18};},
- sheep:function(g,F){return {svg:'<rect x="34" y="66" width="7" height="20" rx="3" fill="'+g.c2+'"/><rect x="59" y="66" width="7" height="20" rx="3" fill="'+g.c2+'"/><circle cx="30" cy="52" r="14" fill="'+F+'"/><circle cx="70" cy="52" r="14" fill="'+F+'"/><circle cx="40" cy="38" r="14" fill="'+F+'"/><circle cx="60" cy="38" r="14" fill="'+F+'"/><circle cx="50" cy="56" r="26" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.4"/><ellipse cx="50" cy="58" rx="19" ry="21" fill="'+g.cl+'" stroke="'+g.c2+'" stroke-width="2.4"/>',ex1:43,ex2:57,ey:56,topY:22};},
- cactus:function(g,F){return {svg:'<rect x="12" y="80" width="76" height="10" rx="4" fill="#C77B4A"/><path d="M22 56 q-10 0 -10 -12 q0 -8 6 -8 q6 0 6 8 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.4"/><path d="M78 60 q10 0 10 -12 q0 -8 -6 -8 q-6 0 -6 8 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.4"/><rect x="34" y="20" width="32" height="62" rx="16" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/><path d="M42 30 v40 M58 30 v40" stroke="'+g.c2+'" stroke-width="1.6" opacity=".4"/>',ex1:43,ex2:57,ey:50,topY:20};},
- egg:function(g,F){return {svg:'<ellipse cx="50" cy="56" rx="30" ry="34" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/><path d="M28 50 L38 44 L34 54 L44 50 L40 60 L50 54 L58 60 L56 50 L66 55 L62 45 L72 50" fill="none" stroke="'+g.c2+'" stroke-width="1.8" stroke-linejoin="round" opacity=".5"/>',ex1:42,ex2:58,ey:64,topY:24};},
- cairn:function(g,F){return {svg:'<ellipse cx="50" cy="78" rx="30" ry="12" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.6"/><ellipse cx="50" cy="58" rx="24" ry="12" fill="'+g.cl+'" stroke="'+g.c2+'" stroke-width="2.6"/><ellipse cx="50" cy="40" rx="17" ry="11" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.6"/>',ex1:43,ex2:57,ey:38,topY:26};},
- bolt:function(g,F){return {svg:'<path d="M58 8 L30 48 L46 48 L38 70 L40 92 L64 50 L48 50 L58 8 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8" stroke-linejoin="round"/>',ex1:40,ex2:54,ey:46,topY:6};},
- crab:function(g,F){return {svg:'<path d="M22 70 l-10 6 M24 76 l-9 8 M76 70 l10 6 M74 76 l9 8" stroke="'+g.c2+'" stroke-width="3" stroke-linecap="round"/><path d="M20 54 q-14 -6 -14 -18 q0 -8 8 -8 q8 0 8 8 q0 6 -4 8 q6 2 6 8 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.4"/><path d="M80 54 q14 -6 14 -18 q0 -8 -8 -8 q-8 0 -8 8 q0 6 4 8 q-6 2 -6 8 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.4"/><ellipse cx="50" cy="62" rx="30" ry="22" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/><line x1="40" y1="48" x2="40" y2="40" stroke="'+g.c2+'" stroke-width="2.6"/><circle cx="40" cy="38" r="5.5" fill="#fff" stroke="'+g.c2+'" stroke-width="1.4"/><circle cx="40" cy="38" r="2.6" fill="#2A2A33"/><line x1="60" y1="48" x2="60" y2="40" stroke="'+g.c2+'" stroke-width="2.6"/><circle cx="60" cy="38" r="5.5" fill="#fff" stroke="'+g.c2+'" stroke-width="1.4"/><circle cx="60" cy="38" r="2.6" fill="#2A2A33"/><path d="M43 64 q7 4 14 0" stroke="rgba(60,30,30,.5)" stroke-width="2.4" fill="none" stroke-linecap="round"/>',noEyes:true,ex1:40,ex2:60,ey:38,topY:24};},
- snail:function(g,F){return {svg:'<path d="M16 76 Q16 84 30 84 L72 84 Q86 84 80 74 Q56 80 36 76 Q24 73 16 76 Z" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2.4"/><path d="M16 76 Q8 76 11 63 Q18 55 30 60 L28 76 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.4"/><line x1="16" y1="59" x2="12" y2="44" stroke="'+g.c+'" stroke-width="3" stroke-linecap="round"/><circle cx="12" cy="42" r="5" fill="#fff" stroke="'+g.c2+'" stroke-width="1.5"/><circle cx="12" cy="42" r="2.3" fill="#2A2A33"/><line x1="26" y1="58" x2="24" y2="43" stroke="'+g.c+'" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="41" r="5" fill="#fff" stroke="'+g.c2+'" stroke-width="1.5"/><circle cx="24" cy="41" r="2.3" fill="#2A2A33"/><circle cx="60" cy="52" r="27" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/><path d="M60 52 a7 7 0 1 0 -2 -8 a14 14 0 1 0 -13 -3 a21 21 0 1 0 -18 1" fill="none" stroke="'+g.c2+'" stroke-width="2.6" opacity=".6"/>',noEyes:true,ex1:0,ex2:0,ey:0,topY:0};},
- frog:function(g,F){return {svg:'<ellipse cx="26" cy="80" rx="10" ry="6" fill="'+g.c2+'"/><ellipse cx="74" cy="80" rx="10" ry="6" fill="'+g.c2+'"/><path d="M14 62 Q14 44 50 44 Q86 44 86 62 Q86 82 50 82 Q14 82 14 62 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/><circle cx="34" cy="40" r="13" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.6"/><circle cx="66" cy="40" r="13" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.6"/><circle cx="34" cy="40" r="6.5" fill="#fff"/><circle cx="66" cy="40" r="6.5" fill="#fff"/><circle cx="35" cy="42" r="3.4" fill="#2A2A33"/><circle cx="67" cy="42" r="3.4" fill="#2A2A33"/><path d="M36 66 q14 8 28 0" stroke="rgba(60,30,30,.5)" stroke-width="2.6" fill="none" stroke-linecap="round"/>',noEyes:true,ex1:34,ex2:66,ey:40,topY:26};},
- owl:function(g,F){return {svg:'<path d="M30 30 L24 14 L40 26 Z" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2"/><path d="M70 30 L76 14 L60 26 Z" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2"/><path d="M22 52 Q10 50 16 70 Q24 64 32 60 Z" fill="'+g.cl+'" stroke="'+g.c2+'" stroke-width="1.6"/><path d="M78 52 Q90 50 84 70 Q76 64 68 60 Z" fill="'+g.cl+'" stroke="'+g.c2+'" stroke-width="1.6"/><ellipse cx="50" cy="54" rx="30" ry="32" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.8"/><circle cx="39" cy="48" r="13" fill="#fff" stroke="'+g.c2+'" stroke-width="1.6"/><circle cx="61" cy="48" r="13" fill="#fff" stroke="'+g.c2+'" stroke-width="1.6"/><circle cx="40" cy="50" r="6" fill="#2A2A33"/><circle cx="60" cy="50" r="6" fill="#2A2A33"/><circle cx="42" cy="48" r="2" fill="#fff"/><circle cx="62" cy="48" r="2" fill="#fff"/><path d="M45 62 L50 70 L55 62 Z" fill="#F6A623" stroke="'+g.c2+'" stroke-width="1.2"/><path d="M40 88 l6 -6 M50 88 l0 -6 M60 88 l-6 -6" stroke="'+g.c2+'" stroke-width="2.6" stroke-linecap="round"/>',noEyes:true,ex1:39,ex2:61,ey:48,topY:12};},
- butterfly:function(g,F){return {svg:'<path d="M50 50 Q18 28 14 44 Q10 60 34 62 Q46 60 50 52 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.2"/><path d="M50 50 Q82 28 86 44 Q90 60 66 62 Q54 60 50 52 Z" fill="'+F+'" stroke="'+g.c2+'" stroke-width="2.2"/><circle cx="28" cy="44" r="5" fill="'+g.cl+'"/><circle cx="72" cy="44" r="5" fill="'+g.cl+'"/><rect x="46" y="40" width="8" height="30" rx="4" fill="'+g.c2+'"/><path d="M48 40 Q42 28 38 26 M52 40 Q58 28 62 26" stroke="'+g.c2+'" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="47" cy="46" r="2.6" fill="#fff"/><circle cx="53" cy="46" r="2.6" fill="#fff"/><circle cx="47" cy="46.5" r="1.3" fill="#2A2A33"/><circle cx="53" cy="46.5" r="1.3" fill="#2A2A33"/>',noEyes:true,ex1:47,ex2:53,ey:46,topY:26};}
-};
-var FLOATING={ghost:1,serpent:1,butterfly:1,fluff:1,jellyfish:1};
+/* ================= 토스트 ================= */
+var _toastT;
+function toast(msg){
+  var t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT=setTimeout(function(){ t.classList.remove('show'); }, 1900);
+}
 
-/* ===== 부속 ===== */
-function topDeco(g,b){var ty=b.topY;switch(g.top){
- case 'leaf':return '<path d="M50 '+ty+' C50 '+(ty-16)+' 66 '+(ty-20)+' 76 '+(ty-16)+' C70 '+(ty-2)+' 60 '+(ty+2)+' 50 '+ty+' Z" fill="'+g.c2+'"/>';
- case 'sprout':return '<path d="M50 '+ty+' L50 '+(ty-14)+'" stroke="'+g.c2+'" stroke-width="4" stroke-linecap="round"/><path d="M50 '+(ty-12)+' C50 '+(ty-22)+' 62 '+(ty-24)+' 68 '+(ty-20)+' C62 '+(ty-10)+' 56 '+(ty-8)+' 50 '+(ty-12)+' Z" fill="'+g.c2+'"/>';
- case 'flame':return '<path d="M50 '+(ty+2)+' q-12 -12 -3 -28 q3 8 8 11 q0 -14 6 -19 q9 16 -3 36 Z" fill="#F97316"/><path d="M50 '+(ty-2)+' q-5 -8 0 -16 q5 7 0 16 Z" fill="#FFE27A"/>';
- case 'bolt':return '<path d="M60 '+(ty-18)+' L44 '+(ty+4)+' L54 '+(ty+4)+' L42 '+(ty+24)+'" stroke="#F6C544" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
- case 'crystal':return '<path d="M40 '+(ty+2)+' L44 '+(ty-18)+' L50 '+ty+' Z" fill="'+g.c2+'"/><path d="M50 '+ty+' L56 '+(ty-20)+' L62 '+(ty+2)+' Z" fill="'+g.c2+'"/>';
- case 'star':return '<path d="M50 '+(ty-20)+' l3 8 l8.5 0 l-7 5 l2.7 8.5 l-7.2-5.3 l-7.2 5.3 l2.7-8.5 l-7-5 l8.5 0 Z" fill="#F6C544"/>';
- case 'fin':return '<path d="M38 '+(ty+4)+' Q50 '+(ty-14)+' 62 '+(ty+4)+' Z" fill="'+g.c2+'"/>';
- default:return '';
-}}
-function hornsD(g,b){var ty=b.topY;return '<path d="M'+(b.ex1-4)+' '+(ty+4)+' L'+(b.ex1-8)+' '+(ty-12)+' L'+(b.ex1+2)+' '+(ty+2)+' Z" fill="'+g.c2+'"/><path d="M'+(b.ex2+4)+' '+(ty+4)+' L'+(b.ex2+8)+' '+(ty-12)+' L'+(b.ex2-2)+' '+(ty+2)+' Z" fill="'+g.c2+'"/>';}
-function earsD(g,b){var ty=b.topY;if(g.ears==='cat')return '<path d="M30 '+(ty+14)+' L24 '+(ty-6)+' L44 '+(ty+8)+' Z" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2" stroke-linejoin="round"/><path d="M70 '+(ty+14)+' L76 '+(ty-6)+' L56 '+(ty+8)+' Z" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2" stroke-linejoin="round"/>';return '<circle cx="30" cy="'+(ty+6)+'" r="11" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2"/><circle cx="70" cy="'+(ty+6)+'" r="11" fill="'+g.c+'" stroke="'+g.c2+'" stroke-width="2"/>';}
-function wingsBack(g){return '<path d="M26 46 Q8 38 12 58 Q22 52 34 52 Z" fill="'+g.cl+'" stroke="'+g.c2+'" stroke-width="1.4"/><path d="M74 46 Q92 38 88 58 Q78 52 66 52 Z" fill="'+g.cl+'" stroke="'+g.c2+'" stroke-width="1.4"/>';}
-
-/* ===== 조립 ===== */
-function monInner(g){
-  var F='url(#'+g.gid+')';
-  var defs='<defs><radialGradient id="'+g.gid+'" cx="38%" cy="30%" r="80%"><stop offset="0" stop-color="'+g.cl+'"/><stop offset="55%" stop-color="'+g.c+'"/><stop offset="100%" stop-color="'+g.c2+'"/></radialGradient></defs>';
-  var b=BODYLIB[g.body](g,F);
-  var s=defs;
-  if(!FLOATING[g.body]) s+='<ellipse cx="50" cy="92" rx="26" ry="4.5" fill="#000" opacity=".09"/>';
-  if(g.wings!=='none') s+=wingsBack(g);
-  s+=b.svg;
-  if(g.top!=='none') s+=topDeco(g,b);
-  if(g.horns) s+=hornsD(g,b);
-  if(g.ears!=='none') s+=earsD(g,b);
-  if(!b.noEyes){
-    if(g.spots) s+='<circle cx="'+(b.ex1-6)+'" cy="'+(b.ey+10)+'" r="3" fill="'+g.c2+'" opacity=".4"/><circle cx="'+(b.ex2+6)+'" cy="'+(b.ey+12)+'" r="2.4" fill="'+g.c2+'" opacity=".4"/>';
-    if(g.blush) s+=blushD(b.ex1-8,b.ex2+8,b.ey+8);
-    s+=eyesFor(g.eye,b.ex1,b.ex2,b.ey);
-    s+=mouthD(g.mouth,b.ey+11);
+/* ================= 전화번호 정규화 ================= */
+function normPhone(p){
+  return (p||'').replace(/[^0-9+]/g,'');
+}
+function fmtPhone(p){
+  var n=normPhone(p);
+  // 한국 휴대폰 010-XXXX-XXXX 포맷
+  if(/^01[016789]\d{7,8}$/.test(n)){
+    if(n.length===11) return n.replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3');
+    if(n.length===10) return n.replace(/(\d{3})(\d{3})(\d{4})/,'$1-$2-$3');
   }
-  return s;
-}
-function monSVG(g){return '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">'+monInner(g)+'</svg>';}
-function logoSVG(){return '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="lg" cx="38%" cy="30%" r="80%"><stop offset="0" stop-color="#A995F7"/><stop offset="60%" stop-color="#6D4AFF"/><stop offset="100%" stop-color="#5A38E0"/></radialGradient></defs><circle cx="50" cy="50" r="46" fill="#fff"/><ellipse cx="38" cy="84" rx="7" ry="4" fill="#5A38E0"/><ellipse cx="62" cy="84" rx="7" ry="4" fill="#5A38E0"/><ellipse cx="50" cy="50" rx="30" ry="29" fill="url(#lg)"/><circle cx="42" cy="48" r="6" fill="#fff"/><circle cx="58" cy="48" r="6" fill="#fff"/><circle cx="43" cy="49" r="2.6" fill="#2A2A33"/><circle cx="59" cy="49" r="2.6" fill="#2A2A33"/><path d="M44 60 q6 5 12 0" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>';}
-
-/* ===== 이름/설명/티어 ===== */
-var PRE=['몰','토','보','푸','차','미','꼬','두','라','삐','콩','뭉','냐','파','루','단','호','키','비','포','소','나','구','별','용','얼','불','물','잎','돌','쿠','멍','담','수','리','조','바','하','모','노','티','쪼','깨','둥','웅','랑'];
-var SUF=['랑이','씨','방울','몽','전','돌이','솜','린','곰','자','아기','콩','토','미','꾸','뭉','치','냥','루','비','둥이','뽕','깨비','진','요','둔','롱','꼴','팽','님','냥이','별','뭉치','포'];
-var USED_NAMES={};
-function makeName(id){for(var k=0;k<16;k++){var r=rngFor(id,300+k);var nm=PRE[Math.floor(r()*PRE.length)]+SUF[Math.floor(r()*SUF.length)];if(!USED_NAMES[nm]){USED_NAMES[nm]=1;return nm;}}var fb=PRE[id%PRE.length]+SUF[id%SUF.length]+id;USED_NAMES[fb]=1;return fb;}
-var FLV={normal:['동네 골목을 제집처럼 돌아다닌다.','사람을 잘 따르는 순한 몬스터.','낮잠 자리를 늘 새로 찾아다닌다.'],fire:['꼬리 끝 불씨로 밤길을 밝혀준다.','추운 날이면 몸이 더 따뜻해진다.','작은 모닥불 옆을 좋아한다.'],water:['비 오는 날이면 신나서 통통 튄다.','웅덩이만 보면 뛰어드는 장난꾸러기.','몸이 늘 촉촉하고 시원하다.'],grass:['머리 위 새싹이 햇빛을 먹는다.','꽃밭에서 자주 목격된다.','봄이 오면 기운이 넘친다.'],elec:['볼에 모인 정전기로 폰을 살짝 충전.','번쩍일 때 만지면 찌릿하다.','흐린 날엔 힘이 좀 빠진다.'],rock:['가만히 있으면 진짜 돌인 줄 안다.','아주 단단하고 튼튼하다.','오래된 담벼락 근처를 좋아한다.'],fly:['바람 부는 언덕에서 낮잠을 잔다.','높은 곳을 제일 좋아한다.','구름 사이를 유유히 난다.'],bug:['가로등 불빛을 좋아하는 밤 방랑자.','풀숲을 재빠르게 돌아다닌다.','더듬이로 냄새를 잘 맡는다.'],ice:['한여름에도 발바닥이 시원하다.','입김을 불면 눈꽃이 핀다.','추울수록 기운이 난다.'],ghost:['골목 끝에서 가끔 눈만 반짝인다.','밤이 되면 조용히 나타난다.','장난치는 걸 은근히 좋아한다.'],dragon:['아직 아기라 불 대신 딸꾹질.','언젠가 크게 자랄 거라는 소문.','자존심이 은근 세다.'],star:['운 좋은 사람 앞에만 떨어진다.','밤하늘 냄새가 난다고 한다.','아주 드물게 반짝이며 나타난다.']};
-function flavorFor(id,type){var r=rngFor(id,500);var a=FLV[type];return a[Math.floor(r()*a.length)];}
-function buildTypeOrder(){var list=[];for(var t in TYPE_COUNTS){for(var i=0;i<TYPE_COUNTS[t];i++)list.push(t);}var r=mulberry32(20260713);for(var i=list.length-1;i>0;i--){var j=Math.floor(r()*(i+1));var tmp=list[i];list[i]=list[j];list[j]=tmp;}return list;}
-function pickTier(type,r){var x=r();if(type==='star')return x<0.6?'legendary':'rare';if(type==='dragon')return x<0.45?'rare':(x<0.8?'uncommon':'common');if(x<0.66)return 'common';if(x<0.88)return 'uncommon';if(x<0.975)return 'rare';return 'legendary';}
-
-var BODY_POOL={
- normal:['round','bean','quad','rabbit','hedgehog','sheep'],
- fire:['dino','bean','round'],
- water:['fish','slime','octopus','crab','frog','jellyfish'],
- grass:['bean','mushroom','cactus','snail','round'],
- elec:['round','robot','bolt','bean'],
- rock:['golem','cairn','gem','quad'],
- fly:['bird','owl','fluff','butterfly'],
- bug:['bug','caterpillar','spider','butterfly'],
- ice:['gem','golem','round','bean'],
- ghost:['ghost','jellyfish'],
- dragon:['dino','serpent','egg'],
- star:['star','gem']
-};
-var TOP_OK={round:1,bean:1,quad:1,dino:1};
-function genomeFor(id,type,tier,col){
-  var r=rngFor(id,700);
-  var g={id:id,gid:'mg'+id,type:type,tier:tier,c:col.c,c2:col.c2,cl:col.cl};
-  var pool=BODY_POOL[type]; g.body=pool[Math.floor(r()*pool.length)];
-  if(TOP_OK[g.body]){
-    if(type==='grass') g.top=r()<0.5?'leaf':'sprout';
-    else if(type==='fire') g.top='flame';
-    else if(type==='ice') g.top='crystal';
-    else if(type==='elec') g.top='bolt';
-    else if(type==='star') g.top='star';
-    else if(type==='water') g.top=r()<0.35?'fin':'none';
-    else g.top=r()<0.22?'sprout':'none';
-  } else g.top='none';
-  g.ears='none';
-  if((g.body==='round'||g.body==='quad')&&(type==='normal'||type==='ice'||type==='fire')&&r()<0.45) g.ears=r()<0.5?'cat':'round';
-  g.horns=(type==='dragon'&&(g.body==='dino'||g.body==='serpent'))||(type==='rock'&&g.body==='golem'&&r()<0.4);
-  g.wings=(type==='dragon'&&g.body==='dino'&&r()<0.7)?'small':'none';
-  g.spots=r()<0.3;
-  if(tier==='legendary') g.eye=r()<0.7?'star':'round';
-  else if(type==='ghost') g.eye='glow';
-  else g.eye=['normal','normal','round','sleepy'][Math.floor(r()*4)];
-  g.mouth=Math.floor(r()*3);
-  g.blush=r()<0.4&&type!=='ghost';
-  return g;
+  return p||n;
 }
 
-/* ================= 몬스터 빌드 ================= */
-var TYPE_ORDER=buildTypeOrder();
-var MONS=[], MONBYID={}, TOTAL_W=0;
-(function(){
-  for(var i=0;i<151;i++){
-    var id=i+1, type=TYPE_ORDER[i];
-    var tier=pickTier(type, rngFor(id,100));
-    var col=colorsFor(type, rngFor(id,200));
-    var m={id:id, name:makeName(id), type:type, tier:tier, weight:TIERDEF[tier].w,
-      flavor:flavorFor(id,type), genome:genomeFor(id,type,tier,col)};
-    MONS.push(m); MONBYID[id]=m; TOTAL_W+=m.weight;
+
+
+/* ================= VCF 파일 읽기 & 파싱 =================
+   vCard 2.1 / 3.0 지원. 갤럭시 내보내기의
+   CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE 한글도 디코딩. */
+
+// QUOTED-PRINTABLE(UTF-8) → 문자열
+function decodeQP(s){
+  s = s.replace(/=\r?\n/g, '');          // soft line break
+  var bytes = [];
+  for(var i=0;i<s.length;i++){
+    var c = s[i];
+    if(c === '=' && i+2 < s.length+1){
+      var hex = s.substr(i+1,2);
+      if(/^[0-9A-Fa-f]{2}$/.test(hex)){ bytes.push(parseInt(hex,16)); i += 2; continue; }
+    }
+    bytes.push(c.charCodeAt(0) & 0xFF);
   }
-})();
-
-/* ================= 스폰 ================= */
-function cellMonster(cx,cy){
-  var r=mulberry32(hash2(cx,cy));
-  if(r()>SPAWN_RATE) return null;
-  var roll=r()*TOTAL_W, acc=0;
-  for(var i=0;i<MONS.length;i++){acc+=MONS[i].weight; if(roll<acc) return MONS[i].id;}
-  return MONS[MONS.length-1].id;
+  try{ return new TextDecoder('utf-8').decode(new Uint8Array(bytes)); }
+  catch(e){ return s; }
 }
 
-/* ================= 상태 ================= */
-var pos={lat:DEFAULT_POS.lat,lng:DEFAULT_POS.lng};
-var mode='gps', gpsOk=false, watchId=null, dex={}, caughtCells={}, curTab='explore';
-var heading=0, headingValid=false, gpsHeading=null, vHeading=0; // vHeading: 테스트 모드 정면방위
+// vCard 이스케이프 해제
+function unesc(s){
+  return String(s||'').replace(/\\n/gi,'\n').replace(/\\,/g,',').replace(/\\;/g,';').replace(/\\\\/g,'\\');
+}
 
-function setHeading(h){
-  if(h==null||isNaN(h)) return;
-  h=(h+360)%360;
-  if(!headingValid){ heading=h; headingValid=true; }
-  else{ var diff=((h-heading+540)%360)-180; heading=(heading+diff*0.28+360)%360; }
-  scheduleRender();
-}
-var renderPending=false;
-function scheduleRender(){
-  if(renderPending) return; renderPending=true;
-  requestAnimationFrame(function(){ renderPending=false; if(curTab==='explore'&&!fxBusy) renderMap(); });
-}
-function onOrient(e){
-  var h=null;
-  if(typeof e.webkitCompassHeading==='number' && !isNaN(e.webkitCompassHeading)) h=e.webkitCompassHeading;
-  else if(e.alpha!=null && (e.absolute===true || e.absolute===undefined)) h=(360-e.alpha)%360;
-  if(h!=null) setHeading(h);
-}
-function startCompass(){
-  function add(){
-    window.addEventListener('deviceorientationabsolute', onOrient, true);
-    window.addEventListener('deviceorientation', onOrient, true);
+// VCF 텍스트 → [{name, phoneNumber}]
+function parseVCF(text){
+  // 접힌 줄 펴기 (다음 줄이 공백/탭으로 시작하면 이어붙임 — vCard folding)
+  text = text.replace(/\r\n[ \t]/g,'').replace(/\n[ \t]/g,'');
+  var lines = text.split(/\r?\n/);
+  var out = [], cur = null;
+  for(var i=0;i<lines.length;i++){
+    var line = lines[i];
+    if(/^BEGIN:VCARD/i.test(line)){ cur = { name:'', phones:[], emails:[], org:'' }; continue; }
+    if(/^END:VCARD/i.test(line)){
+      if(cur){
+        if(cur.phones.length === 0){
+          // 번호 없는 연락처도 정리 대상(카테고리)으로 보존
+          out.push({ name: cur.name, phoneNumber: '', emails: cur.emails, org: cur.org });
+        } else {
+          for(var p=0;p<cur.phones.length;p++){
+            out.push({ name: cur.name, phoneNumber: cur.phones[p], emails: cur.emails, org: cur.org });
+          }
+        }
+      }
+      cur = null; continue;
+    }
+    if(!cur) continue;
+    var ci = line.indexOf(':');
+    if(ci < 0) continue;
+    var head = line.slice(0, ci);           // e.g. "FN;CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE"
+    var val  = line.slice(ci+1);
+    var parts = head.split(';');
+    var prop = parts[0].toUpperCase();
+    // 그룹 접두(item1.TEL 등) 제거
+    var dot = prop.indexOf('.');
+    if(dot >= 0) prop = prop.slice(dot+1);
+    var isQP = /ENCODING=QUOTED-PRINTABLE/i.test(head);
+
+    if(prop === 'FN'){
+      var v = isQP ? decodeQP(val) : val;
+      cur.name = unesc(v).trim();
+    } else if(prop === 'N'){
+      if(!cur.name){
+        var nv = isQP ? decodeQP(val) : val;
+        // N = 성;이름;중간;접두;접미 → "성+이름" 조합 (한국식: 성이름 붙임)
+        var seg = nv.split(';').map(function(x){ return unesc(x).trim(); });
+        cur.name = ((seg[0]||'') + (seg[1]||'')).trim() || ((seg[1]||'') + ' ' + (seg[0]||'')).trim();
+      }
+    } else if(prop === 'TEL'){
+      var tv = (isQP ? decodeQP(val) : val).trim();
+      if(tv) cur.phones.push(tv);
+    } else if(prop === 'EMAIL'){
+      var ev = unesc(isQP ? decodeQP(val) : val).trim();
+      if(ev) cur.emails.push(ev);
+    } else if(prop === 'ORG'){
+      var ov = unesc((isQP ? decodeQP(val) : val).split(';')[0]).trim();
+      if(ov && !cur.org) cur.org = ov;
+    }
   }
-  try{
-    if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
-      DeviceOrientationEvent.requestPermission().then(function(s){ if(s==='granted') add(); }).catch(function(){});
-    } else { add(); }
-  }catch(e){}
-}
-// 현재 렌더에 쓸 방위(라디안)와 회전 여부
-function activeHeading(){
-  if(mode==='test') return {deg:vHeading, rotate:true};
-  if(headingValid) return {deg:heading, rotate:true};
-  if(gpsHeading!=null) return {deg:gpsHeading, rotate:true};
-  return {deg:0, rotate:false};
-}
-
-function load(){
-  try{dex=JSON.parse(localStorage.getItem('mobdex_dex_v1')||'{}');}catch(e){dex={};}
-  try{caughtCells=JSON.parse(localStorage.getItem('mobdex_cells_v1')||'{}');}catch(e){caughtCells={};}
-}
-function saveDex(){try{localStorage.setItem('mobdex_dex_v1',JSON.stringify(dex));}catch(e){}}
-function saveCells(){try{localStorage.setItem('mobdex_cells_v1',JSON.stringify(caughtCells));}catch(e){}}
-
-/* ================= 좌표 ================= */
-function metersBetween(lat1,lng1,lat2,lng2){
-  var dLat=(lat2-lat1)*111000, dLng=(lng2-lng1)*111000*Math.cos(lat1*Math.PI/180);
-  return {dLat:dLat,dLng:dLng,dist:Math.sqrt(dLat*dLat+dLng*dLng)};
-}
-function nearbyMonsters(){
-  var out=[], ccx=Math.floor(pos.lng/CELL), ccy=Math.floor(pos.lat/CELL), now=Date.now();
-  for(var dx=-SCAN;dx<=SCAN;dx++)for(var dy=-SCAN;dy<=SCAN;dy++){
-    var cx=ccx+dx, cy=ccy+dy, mid=cellMonster(cx,cy);
-    if(!mid) continue;
-    var key=cx+','+cy;
-    if(caughtCells[key]&&(now-caughtCells[key])<COOLDOWN) continue;
-    var slng=(cx+0.5)*CELL, slat=(cy+0.5)*CELL, mb=metersBetween(pos.lat,pos.lng,slat,slng);
-    if(mb.dist>MAP_RADIUS_M+20) continue;
-    out.push({id:mid,key:key,dLat:mb.dLat,dLng:mb.dLng,dist:mb.dist});
-  }
-  out.sort(function(a,b){return a.dist-b.dist;});
   return out;
 }
 
-/* ================= 렌더 ================= */
-function renderMap(){
-  var wrap=document.getElementById('mapWrap');
-  var olds=wrap.querySelectorAll('.mon-marker'); for(var i=0;i<olds.length;i++) olds[i].remove();
-  var W=wrap.clientWidth||320, R=W/2, pxPerM=R/MAP_RADIUS_M;
-  var ring=document.getElementById('rangeRing'); ring.style.width=(CATCH_RANGE*pxPerM*2)+'px'; ring.style.height=(CATCH_RANGE*pxPerM*2)+'px';
-
-  var ah=activeHeading();
-  var H=ah.deg*Math.PI/180, cs=Math.cos(H), sn=Math.sin(H);
-  // 방위 UI
-  document.getElementById('meArrow').innerHTML=arrowSVG();
-  document.getElementById('needle').innerHTML=needleSVG();
-  document.getElementById('needle').style.transform='rotate('+(-ah.deg)+'deg)';
-  var ft=document.getElementById('facingTop'), fb=document.getElementById('facingBot');
-  if(ah.rotate){ ft.textContent='앞'; fb.style.display='block'; document.getElementById('compass').style.display='flex'; }
-  else{ ft.textContent='북(N)'; fb.style.display='none'; document.getElementById('compass').style.display='none'; }
-
-  var list=nearbyMonsters();
-  for(var j=0;j<list.length;j++){
-    var mo=list[j];
-    // 방위 회전: 정면이 화면 위쪽이 되도록
-    var e=mo.dLng, n=mo.dLat;
-    var ex=e*cs - n*sn, nn=e*sn + n*cs;
-    var x=R+ex*pxPerM, y=R-nn*pxPerM;
-    if(x<8||x>W-8||y<8||y>W-8) continue;
-    var m=MONBYID[mo.id], caught=!!dex[mo.id];
-    var el=document.createElement('div');
-    el.className='mon-marker'+(mo.dist<=CATCH_RANGE?' inrange':'')+((!caught&&HIDE_UNCAUGHT)?' unknown':'');
-    el.style.left=x+'px'; el.style.top=y+'px';
-    var rare=(m.tier==='rare'||m.tier==='legendary')?'<div class="rare-dot" style="background:'+TIERDEF[m.tier].c+'"></div>':'';
-    el.innerHTML=monSVG(m.genome)+(caught?'':'<div class="qmark">?</div>')+rare;
-    (function(mm){el.onclick=function(){ if(mm.dist<=CATCH_RANGE) startCatch(mm); else toast(Math.round(mm.dist)+'m 더 가까이 가야 해요'); };})(mo);
-    wrap.appendChild(el);
+// 파일 → 텍스트 (UTF-8/EUC-KR 양쪽 디코드 후 점수로 채택)
+// 점수: 완성형 한글(가-힣)·ASCII는 가점, 치환문자(�)·한글호환자모·한자 등 깨짐 흔적은 감점
+function scoreText(t){
+  var score = 0;
+  for(var i=0;i<t.length;i++){
+    var c = t.charCodeAt(i);
+    if(c === 0xFFFD) score -= 8;                       // � 치환문자
+    else if(c >= 0xAC00 && c <= 0xD7A3) score += 3;    // 완성형 한글
+    else if(c < 128) score += 1;                       // ASCII
+    else if(c >= 0x3130 && c <= 0x318F) score -= 2;    // 호환 자모(깨짐에서 자주)
+    else if(c >= 0x4E00 && c <= 0x9FFF) score -= 3;    // 한자(한국 연락처엔 드묾, 깨짐 흔적)
+    else score -= 1;                                    // 기타 특수문자
   }
-  renderCatchZone(list);
+  return score;
 }
-function arrowSVG(){
-  return '<svg viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">'+
-    '<path d="M15 3 L24 26 L15 20 L6 26 Z" fill="var(--p)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>';
-}
-function needleSVG(){
-  return '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">'+
-    '<path d="M20 6 L25 20 L20 17 L15 20 Z" fill="#DC2626"/>'+
-    '<path d="M20 34 L15 20 L20 23 L25 20 Z" fill="#9CA3AF"/>'+
-    '<text x="20" y="5.5" font-size="6" font-weight="800" fill="#DC2626" text-anchor="middle" font-family="sans-serif">N</text></svg>';
-}
-function renderCatchZone(list){
-  var zone=document.getElementById('catchZone');
-  var inr=list.filter(function(m){return m.dist<=CATCH_RANGE;});
-  if(inr.length){
-    var mo=inr[0], m=MONBYID[mo.id], caught=!!dex[mo.id];
-    zone.innerHTML='<div class="catch-card"><div class="cc-icon'+((!caught&&HIDE_UNCAUGHT)?' unknown':'')+'">'+monSVG(m.genome)+'</div>'+
-      '<div class="cc-info"><b>'+(caught?m.name:'수상한 몬스터')+'</b><div class="dist near">바로 앞에 있어요!</div></div>'+
-      '<button class="cc-btn" id="btnCatch">잡기</button></div>';
-    document.getElementById('btnCatch').onclick=function(){ startCatch(mo); };
-  } else if(list.length){
-    zone.innerHTML='<div class="empty-hint">가장 가까운 몬스터까지 <b style="color:var(--p-d)">'+Math.round(list[0].dist)+'m</b><br>조금만 더 다가가 보세요</div>';
-  } else {
-    zone.innerHTML='<div class="empty-hint">주변에 몬스터가 없어요.<br>조금 걸어서 이동해 보세요 🚶</div>';
-  }
-}
-function updateCounts(){
-  var got=Object.keys(dex).length;
-  document.getElementById('catchCount').textContent=got+' / '+MONS.length;
-  document.getElementById('dexProgress').textContent=got+'마리 발견';
-}
-/* ================= 레벨 (10번 잡을 때마다 레벨업, 최고 Lv.5) ================= */
-var LV_STEP=10, LV_MAX=5;
-function monLevel(count){ return Math.min(LV_MAX, Math.floor(count/LV_STEP)+1); }
-function levelInfo(count){
-  var lv=monLevel(count);
-  if(lv>=LV_MAX) return {lv:LV_MAX, prog:1, remain:0, max:true};
-  var base=(lv-1)*LV_STEP;
-  return {lv:lv, prog:(count-base)/LV_STEP, remain:(lv*LV_STEP-count), max:false};
-}
-function renderDex(){
-  var g=document.getElementById('dexGrid'); g.innerHTML='';
-  for(var i=0;i<MONS.length;i++){
-    var m=MONS[i], caught=!!dex[m.id];
-    var cell=document.createElement('div');
-    cell.className='dex-cell'+(caught?'':' locked');
-    var rb=(caught&&(m.tier==='rare'||m.tier==='legendary'))?'<div class="rb" style="background:'+TIERDEF[m.tier].c+'"></div>':'';
-    cell.innerHTML=rb+'<div class="num">No.'+String(m.id).padStart(3,'0')+'</div><div class="art">'+monSVG(m.genome)+'</div>'+
-      '<div class="nm">'+(caught?m.name:'???')+'</div><div class="cnt">'+(caught?('Lv.'+monLevel(dex[m.id].count)+' · '+dex[m.id].count+'번'):'')+'</div>';
-    (function(mm){cell.onclick=function(){openSheet(mm.id);};})(m);
-    g.appendChild(cell);
-  }
-}
-function openSheet(id){
-  var m=MONBYID[id], caught=!!dex[id], t=TYPEDEF[m.type], ti=TIERDEF[m.tier], body;
-  if(caught){
-    var d=dex[id], dt=new Date(d.firstAt), dstr=dt.getFullYear()+'.'+(dt.getMonth()+1)+'.'+dt.getDate();
-    var li=levelInfo(d.count);
-    body='<div class="big-art">'+monSVG(m.genome)+'</div><h2>'+m.name+'</h2>'+
-      '<div class="badges"><span class="tbadge" style="background:'+t.badge+'">'+t.n+'</span><span class="tbadge" style="background:'+ti.c+'">'+ti.n+'</span><span class="lvchip">Lv.'+li.lv+'</span></div>'+
-      '<div class="lvblock"><div class="lvbar"><i style="width:'+Math.round(li.prog*100)+'%"></i></div><div class="lvinfo">'+(li.max?'⭐ 최고 레벨 달성!':('다음 레벨까지 '+li.remain+'번 더'))+'</div></div>'+
-      '<div class="flavor">'+m.flavor+'</div>'+
-      '<div class="meta"><span>처음 만난 날 '+dstr+'</span><span>총 '+d.count+'번 잡음</span></div>';
-  } else {
-    body='<div class="big-art" style="filter:grayscale(1) brightness(.55) opacity(.5)">'+monSVG(m.genome)+'</div>'+
-      '<h2 style="color:var(--text3)">???</h2><div class="badges"><span class="tbadge" style="background:#C7C7D2">No.'+String(id).padStart(3,'0')+'</span></div>'+
-      '<div class="locked-msg">아직 만나지 못한 몬스터예요.<br>동네를 더 탐험해 보세요!</div>';
-  }
-  document.getElementById('sheet').innerHTML='<div class="grab"></div>'+body;
-  document.getElementById('sheetBg').classList.add('on'); document.getElementById('sheet').classList.add('on');
-}
-function closeSheet(){document.getElementById('sheetBg').classList.remove('on'); document.getElementById('sheet').classList.remove('on');}
-
-/* ================= 잡기 연출 ================= */
-var fxBusy=false;
-function startCatch(mo){
-  if(fxBusy) return; fxBusy=true;
-  var m=MONBYID[mo.id], g=m.genome, isNew=!dex[mo.id];
-  var before=dex[mo.id]?dex[mo.id].count:0;
-  // 등록은 연출 시작 시 확정(중복 방지)
-  if(!dex[mo.id]) dex[mo.id]={count:0,firstAt:Date.now()};
-  dex[mo.id].count++; saveDex();
-  var after=dex[mo.id].count;
-  var leveledUp = monLevel(after) > monLevel(before);
-  var lvNow = monLevel(after);
-  caughtCells[mo.key]=Date.now(); saveCells();
-
-  var fx=document.getElementById('catchFx'), mon=document.getElementById('fxMon'),
-      orb=document.getElementById('fxOrb'), flash=document.getElementById('fxFlash'),
-      res=document.getElementById('fxResult');
-  // reset
-  mon.className=''; orb.className=''; flash.className=''; res.className=''; res.innerHTML='';
-  var pars=fx.querySelectorAll('.fxpar'); for(var i=0;i<pars.length;i++) pars[i].remove();
-  mon.innerHTML=monSVG(g); orb.style.transition='none'; orb.style.top='90%';
-  fx.classList.add('on');
-  requestAnimationFrame(function(){
-    mon.classList.add('in');
-    setTimeout(function(){ orb.style.transition=''; orb.classList.add('fly'); },420);
-    setTimeout(function(){ mon.classList.add('shake'); },820);
-    setTimeout(function(){
-      flash.classList.add('go'); orb.classList.add('hide'); mon.classList.remove('shake'); mon.classList.add('gone');
-      spawnParticles(fx, g.c);
-    },1180);
-    setTimeout(function(){ showResult(m,isNew,leveledUp,lvNow); },1700);
+function readFileSmart(file){
+  return new Promise(function(resolve, reject){
+    var fr = new FileReader();
+    fr.onerror = function(){ reject(new Error('read_fail')); };
+    fr.onload = function(){
+      var buf = fr.result;
+      var utf8 = new TextDecoder('utf-8', { fatal:false }).decode(buf);
+      var euckr = null;
+      try{ euckr = new TextDecoder('euc-kr', { fatal:false }).decode(buf); }catch(e){}
+      if(euckr && scoreText(euckr) > scoreText(utf8)){ resolve(euckr); }
+      else { resolve(utf8); }
+    };
+    fr.readAsArrayBuffer(file);
   });
 }
-function spawnParticles(fx,color){
-  var cols=[color,'#FFE27A','#fff'];
-  for(var i=0;i<12;i++){
-    var p=document.createElement('div'); p.className='fxpar';
-    p.style.background=cols[i%3];
-    fx.appendChild(p);
-    (function(el,ang){
-      var dist=70+Math.random()*40, dx=Math.cos(ang)*dist, dy=Math.sin(ang)*dist;
-      requestAnimationFrame(function(){
-        el.style.transition='transform .6s ease-out, opacity .6s ease-out';
-        el.style.opacity='1';
-        el.style.transform='translate(-50%,-50%) translate('+dx+'px,'+dy+'px) scale(0)';
-        setTimeout(function(){el.style.opacity='0';},50);
-      });
-    })(p, (i/12)*Math.PI*2);
+
+// 선택한 VCF 파일 → contacts 채우고 스캔 시작
+async function loadVCFFile(file){
+  try{
+    var text = await readFileSmart(file);
+    if(!/BEGIN:VCARD/i.test(text)){
+      toast('연락처 백업 파일(VCF)이 아닌 것 같아요');
+      return;
+    }
+    var list = parseVCF(text);
+    if(list.length === 0){
+      toast('파일에서 연락처를 찾지 못했어요');
+      return;
+    }
+    contacts = list;
+    startScan();
+  }catch(e){
+    toast('파일을 여는 데 실패했어요. 다시 시도해 주세요.');
   }
 }
-function showResult(m,isNew,leveledUp,lvNow){
-  var res=document.getElementById('fxResult'), t=TYPEDEF[m.type], ti=TIERDEF[m.tier];
-  var banner = isNew ? '<div class="newbadge">NEW 새로운 발견!</div>'
-             : (leveledUp ? '<div class="newbadge" style="background:#6D4AFF;color:#fff">🎉 레벨업! Lv.'+lvNow+'</div>' : '');
-  res.innerHTML='<div class="fxcard">'+banner+
-    '<div class="cart">'+monSVG(m.genome)+'</div>'+
-    '<h3>'+m.name+'</h3>'+
-    '<div class="cbadges"><span class="tbadge" style="background:'+t.badge+'">'+t.n+'</span><span class="tbadge" style="background:'+ti.c+'">'+ti.n+'</span><span class="lvchip">Lv.'+lvNow+'</span></div>'+
-    '<button class="cbtn">확인</button></div>';
-  res.classList.add('on');
-  document.getElementById('catchFx').onclick=endCatch;
-}
-function endCatch(){
-  var fx=document.getElementById('catchFx');
-  fx.classList.remove('on'); fx.onclick=null;
-  document.getElementById('fxResult').className='';
-  fxBusy=false;
-  updateCounts(); renderMap(); if(curTab==='dex') renderDex();
+
+/* ================= SVG 아이콘 ================= */
+var ICON = {
+  person_q: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.5"/><path d="M3.5 20c0-3.4 2.9-5.2 6.5-5.2 1.2 0 2.3.2 3.2.6"/><circle cx="18" cy="16.5" r="4.5" fill="none"/><path d="M16.6 15.4c.2-.8.9-1.3 1.6-1.2.8.1 1.3.7 1.2 1.4-.1.8-.9.9-1.3 1.5"/><circle cx="18" cy="19.3" r=".4" fill="currentColor" stroke="none"/></svg>',
+  people: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.4 2.9-5.2 6.5-5.2s6.5 1.8 6.5 5.2"/><path d="M16 5.2a3.5 3.5 0 0 1 0 5.9"/><path d="M18.5 14.9c1.9.8 3 2.4 3 4.6"/></svg>',
+  phone_off: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.8 4.5l2.1 3.4-1.9 1.9c.8 1.8 2.3 3.3 4.2 4.2l1.9-1.9 3.4 2.1-1.1 3.6c-4.7.4-13-6-12.7-12.2z"/><path d="M4 20 20 4"/></svg>',
+  letters: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 7.5 6.5 12 17"/><path d="M4.7 13.5h5.6"/><path d="M14 17l3.5-8 3.5 8"/><path d="M15.3 14.3h4.4"/></svg>',
+  list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.6 3.5l2.6 4-2 2c.9 2 2.6 3.7 4.7 4.7l2-2 4 2.6-1.2 4.1c-5.3.5-14.8-6.8-14.3-14.2z"/></svg>',
+  download: '<svg class="svgi" viewBox="0 0 24 24"><path d="M12 3v11m0 0l-4.5-4.5M12 14l4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>',
+  share: '<svg class="svgi" viewBox="0 0 24 24"><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/></svg>',
+  check_big: '<svg class="done-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M7.5 12.5l3 3 6-6.5"/></svg>',
+  sweep: '<svg class="prog-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3l-4.5 9"/><path d="M6 13.5c2.5-1.5 5.5-1.2 7.5.7L11 21c-3-.3-5.5-2-7-4.5z"/><path d="M17 8h4M18.5 12h3M17.5 4.5l2.5-1.5"/></svg>',
+  check_sm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:30px;height:30px;color:var(--primary)"><circle cx="12" cy="12" r="9.5"/><path d="M7.5 12.5l3 3 6-6.5"/></svg>'
+};
+
+/* ================= 분류 (4종) ================= */
+var noNameList=[], dupGroups=[], noPhoneList=[], simGroups=[];
+var delSet = {};                 // id → true (지울 목록)
+var checkedCount = 0;
+
+function baseName(n){ return String(n||'').replace(/[\s\d\.\-_\(\)\[\]·,]/g,'').toLowerCase(); }
+
+function classify(list){
+  noNameList=[]; dupGroups=[]; noPhoneList=[]; simGroups=[]; delSet={};
+  for(var i=0;i<list.length;i++){ list[i].id = i; }
+
+  var byPhone = {};
+  for(var j=0;j<list.length;j++){
+    var c = list[j];
+    var nm = (c.name||'').trim();
+    if(!c.phoneNumber){ noPhoneList.push(c); continue; }
+    var key = normPhone(c.phoneNumber);
+    if(!key){ noPhoneList.push(c); continue; }
+    (byPhone[key] = byPhone[key] || []).push(c);
+    if(nm === '') noNameList.push(c);
+  }
+
+  // 중복: 같은 번호 2회+ → 정보 많은(이름 긴) 쪽을 '남김'으로 자동 선별
+  for(var k in byPhone){
+    if(byPhone[k].length > 1){
+      var g = byPhone[k].slice();
+      g.sort(function(a,b){ return (b.name||'').trim().length - (a.name||'').trim().length; });
+      dupGroups.push({ keep:g[0], others:g.slice(1) });
+    }
+  }
+
+  // 비슷한 이름: 공백·숫자·기호 뺀 이름이 같고, 번호는 서로 다른 것 (보수적)
+  var byBase = {};
+  for(var m=0;m<list.length;m++){
+    var c2 = list[m];
+    if(!c2.phoneNumber) continue;
+    var b = baseName(c2.name);
+    if(b.length < 2) continue;
+    (byBase[b] = byBase[b] || []).push(c2);
+  }
+  for(var bk in byBase){
+    var arr = byBase[bk];
+    if(arr.length < 2) continue;
+    var phones = {};
+    for(var p=0;p<arr.length;p++){ phones[normPhone(arr[p].phoneNumber)] = true; }
+    if(Object.keys(phones).length < 2) continue;   // 번호까지 같으면 '중복'이 담당
+    simGroups.push({ base:bk, items:arr });
+  }
 }
 
-/* ================= 위치/모드 ================= */
-function setGpsStatus(ok,label){document.getElementById('gpsStat').innerHTML='<span class="led'+(ok?'':' off')+'"></span>'+label;}
-var aitStop=null;
-function handleLoc(lat,lng,heading,acc){
-  if(mode!=='gps') return;
-  gpsOk=true; pos.lat=lat; pos.lng=lng;
-  if(heading!=null && !isNaN(heading) && heading>=0) gpsHeading=heading;
-  var comp = headingValid ? ' · 나침반' : (gpsHeading!=null ? ' · 이동방향' : '');
-  setGpsStatus(true,'위치 연결됨'+(acc?' · '+Math.round(acc)+'m':'')+comp);
-  renderMap();
+/* ================= 지울 목록 ================= */
+function delCount(){ var n=0; for(var k in delSet) if(delSet[k]) n++; return n; }
+function setDel(id, on){ if(on) delSet[id]=true; else delete delSet[id]; updateCleanBars(); }
+function toggleDel(id){ setDel(id, !delSet[id]); }
+function updateCleanBars(){
+  var n = delCount();
+  var label = n>0 ? '정리된 파일 만들기 ('+n+'개 빼기)' : '정리된 파일 만들기';
+  var b1=document.getElementById('btnClean'), b2=document.getElementById('btnClean2');
+  if(b1){ b1.textContent=label; b1.disabled = (n===0); }
+  if(b2){ b2.textContent=label; b2.disabled = (n===0); }
 }
-function beginAIT(AIT){
-  try{
-    if(aitStop){ aitStop(); aitStop=null; }
-    aitStop=AIT.startUpdateLocation({
-      options:{ accuracy:(AIT.Accuracy?AIT.Accuracy.BestForNavigation:6), timeInterval:1000, distanceInterval:5 },
-      onEvent:function(loc){ var c=(loc&&loc.coords)||{}; handleLoc(c.latitude,c.longitude,c.heading,c.accuracy); },
-      onError:function(){ fallbackTest('위치 권한 없음 · 체험 모드'); }
+
+/* ================= 요약 리스트 ================= */
+var CATS = [
+  { id:'noname', em:ICON.person_q, t:'이름 없는 번호', d:'누군지 모르는 번호부터 확인해요',
+    n:function(){ return noNameList.length; } },
+  { id:'dup', em:ICON.people, t:'중복된 번호', d:'같은 번호가 두 번 이상 저장됐어요',
+    n:function(){ return dupGroups.length; } },
+  { id:'nophone', em:ICON.phone_off, t:'번호 없는 연락처', d:'전화번호 없이 이메일·회사만 있어요',
+    n:function(){ return noPhoneList.length; } },
+  { id:'sim', em:ICON.letters, t:'비슷한 이름', d:'같은 이름인데 번호가 달라요',
+    n:function(){ return simGroups.length; } },
+  { id:'all', em:ICON.list, t:'전체 연락처', d:'모든 번호를 보고 하나씩 삭제해요',
+    n:function(){ return contacts.length; } }
+];
+function renderSummary(){
+  var w = document.getElementById('sumList'); var html='';
+  for(var i=0;i<CATS.length;i++){
+    var c=CATS[i], n=c.n();
+    html += '<div class="sum-row" data-cat="'+c.id+'">'+
+      '<div class="sum-ico">'+c.em+'</div>'+
+      '<div class="sum-txt"><div class="sum-t">'+c.t+'</div><div class="sum-d">'+c.d+'</div></div>'+
+      '<div class="sum-n'+(n===0?' zero':'')+'">'+n+'</div>'+
+      '<div class="sum-chev">›</div></div>';
+  }
+  w.innerHTML = html;
+  var rows = w.querySelectorAll('.sum-row');
+  for(var r=0;r<rows.length;r++){
+    rows[r].addEventListener('click', function(){ openCat(this.getAttribute('data-cat')); });
+  }
+}
+
+/* ================= 카테고리 상세 ================= */
+var curCat = null;
+function esc(t){ return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function rowHTML(c, opts){
+  opts = opts || {};
+  var nm = (c.name||'').trim();
+  var nameHtml = nm ? esc(nm) : '<span class="noname">이름 없음</span>';
+  var sub = c.phoneNumber ? esc(c.phoneNumber) : (c.emails && c.emails[0] ? esc(c.emails[0]) : '—');
+  var hint = '';
+  if(!c.phoneNumber){
+    var bits=[]; if(c.org) bits.push(esc(c.org));
+    if(c.emails && c.emails.length>1) bits.push('이메일 '+c.emails.length+'개');
+    hint = bits.length ? '<div class="row-hint">'+bits.join(' · ')+'</div>' : '';
+  } else if(c.org){ hint = '<div class="row-hint">'+esc(c.org)+'</div>'; }
+  var marked = delSet[c.id] ? ' marked' : '';
+  var call = (opts.call && c.phoneNumber)
+    ? '<a class="btn-call" href="tel:'+esc(normPhone(c.phoneNumber))+'">'+ICON.phone+'</a>' : '';
+  var keep = opts.keep ? '<span class="keep-badge">남김</span>' : '';
+  var mark = opts.nomark ? '' :
+    '<button class="btn-mark" data-id="'+c.id+'">'+(delSet[c.id]?'삭제 취소':'삭제')+'</button>';
+  return '<div class="row-item'+marked+'" data-row="'+c.id+'">'+
+    '<div class="row-main"><div class="row-name">'+nameHtml+'</div>'+
+    '<div class="row-sub">'+sub+'</div>'+hint+'</div>'+keep+call+mark+'</div>';
+}
+function bindMarks(root){
+  var btns = root.querySelectorAll('.btn-mark');
+  for(var i=0;i<btns.length;i++){
+    btns[i].addEventListener('click', function(){
+      var id = +this.getAttribute('data-id');
+      toggleDel(id);
+      var row = root.querySelector('[data-row="'+id+'"]');
+      if(row){ row.classList.toggle('marked', !!delSet[id]); }
+      this.textContent = delSet[id] ? '삭제 취소' : '삭제';
+      var cat = CATS.filter(function(c){return c.id===curCat;})[0];
+      document.getElementById('catSub').textContent = catSubText();
     });
-  }catch(e){ fallbackTest('위치 오류 · 체험 모드'); }
-}
-function startGeo(){
-  var AIT=window.__AIT_LOC;                 // 토스(granite) 환경이면 주입됨
-  if(AIT && AIT.startUpdateLocation){
-    setGpsStatus(false,'위치 확인 중…');
-    try{
-      AIT.startUpdateLocation.getPermission().then(function(st){
-        if(st!=='allowed') return AIT.startUpdateLocation.openPermissionDialog();
-      }).catch(function(){}).then(function(){ beginAIT(AIT); });
-    }catch(e){ beginAIT(AIT); }
-    return;
   }
-  // 브라우저(테스트) 폴백
-  if(!navigator.geolocation){ fallbackTest('GPS 미지원 · 체험 모드'); return; }
-  setGpsStatus(false,'위치 확인 중…');
+}
+function catSubText(){
+  return '삭제할 번호 '+delCount()+'개 · 새 파일에서 빠져요';
+}
+function openCat(cat){
+  curCat = cat;
+  var body = document.getElementById('catBody');
+  var tools = document.getElementById('catTools');
+  var meta = CATS.filter(function(c){return c.id===cat;})[0];
+  document.getElementById('catTitle').textContent = meta.t;
+  document.getElementById('catSub').textContent = catSubText();
+  tools.innerHTML=''; var html='';
+
+  if(cat==='noname'){
+    if(!noNameList.length){ html='<div class="empty-note"><span class="em">'+ICON.check_sm+'</span>이름 없는 번호가 없어요!</div>'; }
+    for(var i=0;i<noNameList.length;i++){ html += rowHTML(noNameList[i], {call:true}); }
+    body.innerHTML = html; bindMarks(body);
+  }
+  else if(cat==='dup'){
+    if(dupGroups.length){
+      tools.innerHTML='<button class="big-btn" id="dupAuto">겹친 번호 한 번에 삭제 ('+
+        dupGroups.reduce(function(a,g){return a+g.others.length;},0)+'개)</button>';
+    } else { html='<div class="empty-note"><span class="em">'+ICON.check_sm+'</span>중복된 번호가 없어요!</div>'; }
+    for(var g=0;g<dupGroups.length;g++){
+      var grp=dupGroups[g];
+      html += '<div class="grp"><div class="grp-label">같은 번호 '+(grp.others.length+1)+'개</div>'+
+        rowHTML(grp.keep,{keep:true,nomark:true});
+      for(var o=0;o<grp.others.length;o++){ html += rowHTML(grp.others[o],{}); }
+      html += '</div>';
+    }
+    body.innerHTML = html; bindMarks(body);
+    var da=document.getElementById('dupAuto');
+    if(da){ da.addEventListener('click', function(){
+      for(var g=0;g<dupGroups.length;g++)
+        for(var o=0;o<dupGroups[g].others.length;o++) delSet[dupGroups[g].others[o].id]=true;
+      updateCleanBars(); openCat('dup'); toast('겹친 번호를 모두 삭제 표시했어요');
+    }); }
+  }
+  else if(cat==='nophone'){
+    if(noPhoneList.length){
+      tools.innerHTML='<button class="big-btn ghost" id="npAuto">번호 없는 연락처 모두 삭제 ('+noPhoneList.length+'개)</button>';
+    } else { html='<div class="empty-note"><span class="em">'+ICON.check_sm+'</span>번호 없는 연락처가 없어요!</div>'; }
+    for(var i2=0;i2<noPhoneList.length;i2++){ html += rowHTML(noPhoneList[i2],{}); }
+    body.innerHTML = html; bindMarks(body);
+    var np=document.getElementById('npAuto');
+    if(np){ np.addEventListener('click', function(){
+      for(var i3=0;i3<noPhoneList.length;i3++) delSet[noPhoneList[i3].id]=true;
+      updateCleanBars(); openCat('nophone'); toast('번호 없는 연락처를 모두 삭제 표시했어요');
+    }); }
+  }
+  else if(cat==='all'){
+    tools.innerHTML =
+      '<input class="all-search" id="allSearch" type="search" placeholder="이름이나 번호로 찾기" autocomplete="off">';
+    body.innerHTML = '<div id="allList"></div>'+
+      '<button class="big-btn ghost" id="allMore" style="display:none">더 보기</button>';
+    var CHUNK = 100, shown = 0, filtered = contacts;
+    var listEl = document.getElementById('allList');
+    var moreBtn = document.getElementById('allMore');
+    function renderChunk(reset){
+      if(reset){ listEl.innerHTML=''; shown=0; }
+      var end = Math.min(shown+CHUNK, filtered.length), html='';
+      for(var i=shown;i<end;i++){ html += rowHTML(filtered[i], {call:true}); }
+      listEl.insertAdjacentHTML('beforeend', html);
+      shown = end;
+      bindMarks(listEl);
+      moreBtn.style.display = (shown < filtered.length) ? 'block' : 'none';
+      moreBtn.textContent = '더 보기 ('+(filtered.length-shown)+'개 남음)';
+      document.getElementById('catSub').textContent =
+        filtered.length+'개 중 '+shown+'개 표시 · '+catSubText();
+    }
+    moreBtn.addEventListener('click', function(){ renderChunk(false); });
+    document.getElementById('allSearch').addEventListener('input', function(){
+      var q = this.value.trim().toLowerCase();
+      var qn = q.replace(/[^0-9]/g,'');
+      filtered = !q ? contacts : contacts.filter(function(c){
+        var nameHit = (c.name||'').toLowerCase().indexOf(q) >= 0;
+        var telHit = qn.length >= 2 && normPhone(c.phoneNumber).indexOf(qn) >= 0;
+        return nameHit || telHit;
+      });
+      renderChunk(true);
+    });
+    renderChunk(true);
+  }
+  else if(cat==='sim'){
+    if(!simGroups.length){ html='<div class="empty-note"><span class="em">'+ICON.check_sm+'</span>비슷한 이름이 없어요!</div>'; }
+    for(var g2=0;g2<simGroups.length;g2++){
+      var sg=simGroups[g2];
+      html += '<div class="grp"><div class="grp-label">비슷한 이름 '+sg.items.length+'개 — 필요 없는 것만 삭제하세요</div>';
+      for(var it=0;it<sg.items.length;it++){ html += rowHTML(sg.items[it],{call:true}); }
+      html += '</div>';
+    }
+    body.innerHTML = html; bindMarks(body);
+  }
+  show('cat');
+  document.getElementById('tabbar').classList.add('on');
+}
+document.getElementById('catBack').addEventListener('click', function(){
+  renderSummary(); show('main');
+});
+
+function vcfEsc(s){
+  // vCard 특수문자 이스케이프
+  return String(s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+}
+
+// 백업 파일 저장 — 토스: SAVE_IMAGE(saveBase64Data) / 폰웹: navigator.share / PC: blob
+async function shareVCF(){
+  if(!contacts.length){ toast('먼저 연락처를 불러와 주세요'); return; }
+  var vcf = buildVCF(contacts);
+  var filename = 'contacts_'+vcfStamp()+'.vcf';
+
+  // 1) navigator.share (파일) — 폰에서 카톡/드라이브로 바로 보내기
   try{
-    watchId=navigator.geolocation.watchPosition(function(p){
-      var hd=(p.coords.heading!=null && !isNaN(p.coords.heading) && p.coords.speed>0.4)?p.coords.heading:null;
-      handleLoc(p.coords.latitude,p.coords.longitude,hd,p.coords.accuracy);
-    },function(){ fallbackTest('위치 권한 없음 · 체험 모드'); },
-    {enableHighAccuracy:true,maximumAge:5000,timeout:9000});
-  }catch(e){ fallbackTest('GPS 오류 · 체험 모드'); }
+    if(navigator.canShare){
+      var file = new File([vcf], filename, { type:'text/vcard' });
+      if(navigator.canShare({ files:[file] })){
+        await navigator.share({ files:[file], title:'연락처 백업' });
+        return;
+      }
+    }
+  }catch(e){ if(e && e.name==='AbortError') return; }
+
+  // 3) PC 다운로드 폴백
+  try{
+    var blob = new Blob([vcf], { type:'text/vcard' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename; a.style.display='none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
+    toast('백업 파일을 저장했어요'); return;
+  }catch(e){}
+
+  // 4) 최후: 텍스트 복사
+  copyVCF(vcf);
 }
-function stopGeo(){
-  if(aitStop){ try{aitStop();}catch(e){} aitStop=null; }
-  if(watchId!=null && navigator.geolocation){ try{navigator.geolocation.clearWatch(watchId);}catch(e){} watchId=null; }
+
+// 저장이 막히는 환경용 — VCF 내용을 클립보드로
+function copyVCF(vcf){
+  if(!contacts.length){ toast('먼저 연락처를 불러와 주세요'); return; }
+  vcf = vcf || buildVCF(contacts);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(vcf).then(
+      function(){ toast('백업 내용을 복사했어요 (메모·메일에 붙여넣기)'); },
+      function(){ toast('길게 눌러 복사해 주세요'); }
+    );
+  } else { toast('복사를 지원하지 않는 환경이에요'); }
 }
-function fallbackTest(msg){
-  mode='test'; gpsOk=false; stopGeo();
-  document.getElementById('dpad').classList.add('on');
-  document.getElementById('modeToggle').textContent='GPS 켜기';
-  setGpsStatus(false,msg||'체험 모드'); renderMap();
+
+function b64(str){
+  // UTF-8 안전 base64
+  return btoa(unescape(encodeURIComponent(str)));
 }
-function toggleMode(){
-  if(mode==='gps'){
-    mode='test'; stopGeo(); document.getElementById('dpad').classList.add('on');
-    document.getElementById('modeToggle').textContent='GPS 켜기'; setGpsStatus(false,'체험 모드 · 가상 이동');
-  } else {
-    mode='gps'; document.getElementById('dpad').classList.remove('on');
-    document.getElementById('modeToggle').textContent='체험 모드'; startGeo();
+function vcfStamp(){
+  var d=new Date(), p=function(n){ return (n<10?'0':'')+n; };
+  return ''+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes());
+}
+
+/* ================= 시작 흐름 ================= */
+var vcfInput = document.getElementById('vcfInput');
+document.getElementById('introStart').addEventListener('click', function(){ vcfInput.click(); });
+document.getElementById('introGuide').addEventListener('click', function(){ show('guide'); });
+document.getElementById('guideOpen').addEventListener('click', function(){ vcfInput.click(); });
+document.getElementById('guideBack').addEventListener('click', function(){ show('intro'); });
+vcfInput.addEventListener('change', function(){
+  if(vcfInput.files && vcfInput.files[0]){ loadVCFFile(vcfInput.files[0]); }
+  vcfInput.value = '';   // 같은 파일 재선택 가능하게
+});
+
+
+
+/* ================= 탭 전환 ================= */
+function switchTab(tab){
+  // 화면
+  var map = { main:'main', backup:'backup', restore:'restore' };
+  show(map[tab] || 'main');
+  document.getElementById('tabbar').classList.add('on');
+  // 탭 활성화
+  var tabs=document.querySelectorAll('.tab');
+  for(var i=0;i<tabs.length;i++) tabs[i].classList.toggle('on', tabs[i].dataset.tab===tab);
+  // 백업 화면이면 카운트 갱신
+  if(tab==='backup'){
+    var el=document.getElementById('backupCount');
+    el.textContent = contacts.length ? contacts.length : '—';
   }
-  renderMap();
 }
-function vforward(dir){ // dir: 1 앞으로, -1 뒤로 (정면 vHeading 기준)
-  var hr=vHeading*Math.PI/180;
-  var n=Math.cos(hr)*STEP_M*dir, e=Math.sin(hr)*STEP_M*dir;
-  pos.lat+=n/111000;
-  pos.lng+=e/(111000*Math.cos(pos.lat*Math.PI/180));
-  renderMap();
-}
-function vturn(dir){ vHeading=(vHeading+dir*25+360)%360; renderMap(); }
+document.getElementById('tabbar').addEventListener('click', function(e){
+  var t=e.target.closest('.tab'); if(!t) return;
+  switchTab(t.dataset.tab);
+});
+document.getElementById('btnBackup').addEventListener('click', saveBackup);
+document.getElementById('btnBackupShare').addEventListener('click', shareBackup);
+document.getElementById('btnBackupCopy').addEventListener('click', function(){ copyVCF(); });
 
-/* ================= 탭 ================= */
-function switchTab(t){
-  curTab=t;
-  document.getElementById('tabExplore').classList.toggle('on',t==='explore');
-  document.getElementById('tabDex').classList.toggle('on',t==='dex');
-  document.getElementById('pageExplore').classList.toggle('on',t==='explore');
-  document.getElementById('pageDex').classList.toggle('on',t==='dex');
-  if(t==='dex') renderDex(); if(t==='explore') renderMap();
+/* ================= CSV (구글 주소록 가져오기용) ================= */
+function csvEsc(v){
+  v = String(v == null ? '' : v);
+  if(/[",\r\n]/.test(v)) v = '"' + v.replace(/"/g,'""') + '"';
+  return v;
+}
+// 구글 주소록 '가져오기'가 인식하는 헤더 (블로그 방식과 동일 계열)
+function buildCSV(list){
+  var head = ['Name','Given Name','Phone 1 - Type','Phone 1 - Value','E-mail 1 - Value','Organization 1 - Name'];
+  var rows = [head.join(',')];
+  for(var i=0;i<list.length;i++){
+    var c = list[i];
+    var name = (c.name||'').trim() || '이름 없음';
+    rows.push([
+      csvEsc(name), csvEsc(name),
+      c.phoneNumber ? 'Mobile' : '',
+      csvEsc(c.phoneNumber||''),
+      csvEsc(c.emails && c.emails[0] ? c.emails[0] : ''),
+      csvEsc(c.org||'')
+    ].join(','));
+  }
+  return '\uFEFF' + rows.join('\r\n');   // BOM: 한글 안 깨지게
 }
 
-/* ================= toast ================= */
-var toastTimer=null;
-function toast(msg){var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on');
-  if(toastTimer) clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.classList.remove('on');},1800);}
+// 저장 형식 상태 (vcf: 폰 연락처용 / csv: 구글 주소록용)
+var fmtState = { backup:'vcf', clean:'vcf' };
+function bindFmtChips(scope){
+  var chips = document.querySelectorAll('.fmt-chip[data-scope="'+scope+'"]');
+  for(var i=0;i<chips.length;i++){
+    chips[i].addEventListener('click', function(){
+      fmtState[scope] = this.getAttribute('data-fmt');
+      for(var j=0;j<chips.length;j++) chips[j].classList.toggle('on', chips[j]===this);
+      var ext = document.getElementById(scope==='backup' ? 'backupExt' : 'cleanExt');
+      if(ext) ext.textContent = '.' + fmtState[scope];
+    });
+  }
+}
+function buildBy(fmt, list){ return fmt==='csv' ? buildCSV(list) : buildVCF(list); }
+function mimeBy(fmt){ return fmt==='csv' ? 'text/csv' : 'text/vcard'; }
 
-/* ================= 시작 ================= */
-function startApp(){
-  document.getElementById('intro').style.display='none';
-  try{ if(window.setScreenAwakeMode) window.setScreenAwakeMode('always'); }catch(e){}
-  startGeo(); startCompass(); renderMap();
-  setInterval(function(){ if(curTab==='explore'&&!fxBusy) renderMap(); },3000);
+/* ================= 토스 네이티브 브릿지 =================
+   토스 WebView(App.tsx)에서 실행되면 saveBase64Data 패턴으로 저장.
+   메시지: {type:'SAVE_IMAGE', base64, filename, mimeType} → SAVE_RESULT 수신 */
+var rnwv = (typeof window.ReactNativeWebView !== 'undefined');
+window.addEventListener('message', function(e){
+  var d = e.data; if(!d || d.type !== 'SAVE_RESULT') return;
+  toast(d.ok ? '저장했어요! 파일 앱에서 확인하세요' : '저장 실패: '+(d.error||''));
+});
+function nativeSave(text, filename, mime){
+  try{
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+      type:'SAVE_IMAGE', base64: b64(text), filename: filename, mimeType: mime || 'text/vcard'
+    }));
+    toast('저장 중…');
+    return true;
+  }catch(e){ return false; }
 }
-function init(){
-  document.getElementById('introLogo').innerHTML=logoSVG();
-  document.getElementById('headLogo').innerHTML=logoSVG();
-  load(); updateCounts(); renderDex();
+
+/* ================= 파일 저장(다운로드) 공통 ================= */
+function downloadVCF(text, filename, mime){
+  if(rnwv){ return nativeSave(text, filename, mime); }   // 토스 안: 네이티브 저장
+  try{
+    var blob = new Blob([text], { type: mime || 'text/vcard' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
+    toast('저장했어요! 파일 앱 → 다운로드 폴더에 있어요');
+    return true;
+  }catch(e){ return false; }
 }
-if(typeof document!=='undefined' && document.getElementById('introLogo')) init();
+async function shareVCFText(text, filename, title, mime){
+  if(rnwv){ return nativeSave(text, filename, mime); }   // 토스 안: 저장으로 안내
+  // https가 아니면(다운로드로 연 파일 등) 파일 공유가 불가능한 환경
+  if(!window.isSecureContext){
+    toast('여기선 바로 보내기가 안 돼요. 저장 후 카톡 ＋ → 파일로 보내주세요.');
+    return false;
+  }
+  // 파일 공유가 확실히 지원될 때만 공유. (텍스트로 격하되면 카톡에 제목만 가는 문제 방지)
+  try{
+    if(navigator.canShare && window.File){
+      var f = new File([text], filename, { type: mime || 'text/vcard' });
+      if(navigator.canShare({ files:[f] })){
+        await navigator.share({ files:[f], title: filename });
+        return true;
+      }
+    }
+  }catch(e){ if(e && e.name==='AbortError') return true; }
+  toast('이 브라우저는 파일 공유가 안 돼요. 저장 후 카톡에서 파일로 보내주세요.');
+  return false;
+}
+
+// 파일명 입력값 → 안전한 파일명 (기본: 연락처)
+function pickName(inputId, fallback, ext){
+  var el = document.getElementById(inputId);
+  var v = el ? el.value.trim() : '';
+  v = v.replace(/\.(vcf|csv)$/i,'').replace(/[\\\/:*?"<>|]/g,'').trim();
+  if(!v) v = fallback;
+  return v + '.' + (ext || 'vcf');
+}
+
+// 백업 파일 기기에 저장
+function saveBackup(){
+  if(!contacts.length){ toast('먼저 연락처를 불러와 주세요'); return; }
+  var fmt = fmtState.backup;
+  var ok = downloadVCF(buildBy(fmt, contacts), pickName('backupName','연락처',fmt), mimeBy(fmt));
+  if(!ok) copyVCF();
+}
+// 백업 파일 공유(카톡 나에게 보내기 등)
+async function shareBackup(){
+  if(!contacts.length){ toast('먼저 연락처를 불러와 주세요'); return; }
+  var fmt = fmtState.backup;
+  var ok = await shareVCFText(buildBy(fmt, contacts), pickName('backupName','연락처',fmt), '연락처 백업', mimeBy(fmt));
+  if(!ok) saveBackup();
+}
+
+/* ================= 정리된 파일 생성 ================= */
+var cleanedVCF = null, cleanedList = null, cleanedRemoved = 0, cleanedKept = 0;
+function buildCleanVCF(){
+  var kept = [];
+  for(var i=0;i<contacts.length;i++){ if(!delSet[contacts[i].id]) kept.push(contacts[i]); }
+  var out = [];
+  for(var j=0;j<kept.length;j++){
+    var c = kept[j];
+    var name = (c.name||'').trim() || '이름 없음';
+    out.push('BEGIN:VCARD'); out.push('VERSION:3.0');
+    out.push('FN:'+vcfEsc(name));
+    if(c.phoneNumber) out.push('TEL;TYPE=CELL:'+vcfEsc(c.phoneNumber));
+    if(c.emails) for(var e=0;e<c.emails.length;e++) out.push('EMAIL:'+vcfEsc(c.emails[e]));
+    if(c.org) out.push('ORG:'+vcfEsc(c.org));
+    out.push('END:VCARD');
+  }
+  cleanedKept = kept.length;
+  cleanedList = kept;
+  return out.join('\r\n');
+}
+function runClean(){
+  var n = delCount(); if(!n){ toast('먼저 지울 번호에 [삭제]를 눌러 주세요'); return; }
+  cleanedRemoved = n;
+  var ov=document.getElementById('progOv'), fill=document.getElementById('progFill');
+  document.getElementById('progDesc').textContent = '연락처 '+contacts.length+'개 중 '+n+'개 빼는 중';
+  ov.classList.add('on'); fill.style.width='0%';
+  var pct=0;
+  var t=setInterval(function(){
+    pct+=Math.random()*22+8;
+    if(pct>=100){ pct=100; clearInterval(t);
+      cleanedVCF = buildCleanVCF();
+      setTimeout(function(){
+        ov.classList.remove('on');
+        document.getElementById('doneNum').textContent = cleanedRemoved;
+        document.getElementById('doneDesc').innerHTML =
+          '남긴 연락처 <b>'+cleanedKept+'개</b>로 새 백업 파일을 만들었어요.<br>새 폰엔 이 파일로 가져오면 끝!';
+        show('done');
+      }, 250);
+    }
+    fill.style.width = pct+'%';
+  }, 130);
+}
+function saveCleaned(){
+  if(!cleanedList){ toast('먼저 정리된 파일을 만들어 주세요'); return; }
+  var fmt = fmtState.clean;
+  downloadVCF(fmt==='csv' ? buildCSV(cleanedList) : cleanedVCF,
+              pickName('cleanName','연락처_정리',fmt), mimeBy(fmt));
+}
+async function shareCleaned(){
+  if(!cleanedList){ toast('먼저 정리된 파일을 만들어 주세요'); return; }
+  var fmt = fmtState.clean;
+  var text = fmt==='csv' ? buildCSV(cleanedList) : cleanedVCF;
+  var filename = pickName('cleanName','연락처_정리',fmt);
+  var ok = await shareVCFText(text, filename, filename, mimeBy(fmt));
+  if(ok) return;
+  saveCleaned();   // 공유 불가 → 저장으로 폴백
+}
+document.getElementById('btnClean').addEventListener('click', runClean);
+document.getElementById('btnClean2').addEventListener('click', runClean);
+document.getElementById('doneSave').addEventListener('click', saveCleaned);
+document.getElementById('doneShare').addEventListener('click', shareCleaned);
+bindFmtChips('backup'); bindFmtChips('clean');
+
+/* ================= 시작 흐름 ================= */
+var vcfInput = document.getElementById('vcfInput');
+document.getElementById('introStart').addEventListener('click', function(){ vcfInput.click(); });
+document.getElementById('introGuide').addEventListener('click', function(){ show('guide'); });
+document.getElementById('guideOpen').addEventListener('click', function(){ vcfInput.click(); });
+document.getElementById('guideBack').addEventListener('click', function(){ show('intro'); });
+vcfInput.addEventListener('change', function(){
+  if(vcfInput.files && vcfInput.files[0]){ loadVCFFile(vcfInput.files[0]); }
+  vcfInput.value = '';   // 같은 파일 재선택 가능하게
+});
+
+function startScan(){
+  show('main');
+  classify(contacts);
+  document.getElementById('topSub').textContent =
+    '총 '+contacts.length+'개를 살펴봤어요';
+  renderSummary();
+  updateCleanBars();
+  document.getElementById('tabbar').classList.add('on');
+  document.getElementById('backupCount').textContent = contacts.length;
+}
+
+document.getElementById('doneRestart').addEventListener('click', function(){
+  renderSummary(); show('main');
+});
+
+/* ================= 탭 전환 ================= */
+function switchTab(tab){
+  // 화면
+  var map = { main:'main', backup:'backup', restore:'restore' };
+  show(map[tab] || 'main');
+  document.getElementById('tabbar').classList.add('on');
+  // 탭 활성화
+  var tabs=document.querySelectorAll('.tab');
+  for(var i=0;i<tabs.length;i++) tabs[i].classList.toggle('on', tabs[i].dataset.tab===tab);
+  // 백업 화면이면 카운트 갱신
+  if(tab==='backup'){
+    var el=document.getElementById('backupCount');
+    el.textContent = contacts.length ? contacts.length : '—';
+  }
+}
+document.getElementById('tabbar').addEventListener('click', function(e){
+  var t=e.target.closest('.tab'); if(!t) return;
+  switchTab(t.dataset.tab);
+});
+document.getElementById('btnBackup').addEventListener('click', saveBackup);
+document.getElementById('btnBackupShare').addEventListener('click', shareBackup);
+document.getElementById('btnBackupCopy').addEventListener('click', function(){ copyVCF(); });
+
+/* 핀치줌 차단 */
+document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+document.addEventListener('touchmove', function(e){
+  if(e.scale && e.scale!==1){ e.preventDefault(); }
+}, { passive:false });
 </script>
 </body>
 </html>
